@@ -13,13 +13,9 @@ Este repositório contém scripts para automatizar a gestão do SisFinance (Sist
 - `creditcard_invoices/manage_invoices.py`: Script principal de gerenciamento de faturas
 - `creditcard_invoices/requirements.txt`: Dependências Python necessárias
 - `.github/workflows/invoices.yml`: Workflow do GitHub Actions para execução automatizada
-   ```
 
 ## Execução Automática
 O workflow do GitHub Actions executa o script a cada 5 dias ou sob demanda manual.
 
-## Observações
-- O script utiliza timezone 'America/Sao_Paulo' e feriados nacionais brasileiros.
-
 ## Licença
-Uso interno.
+Uso interno/proprietário.

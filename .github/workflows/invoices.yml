@@ -1,4 +1,4 @@
-name: Gerencia a criação, modificação ou exclusão de faturas sob demandas específicas.
+name: Gerencia a criação, modificação ou exclusão de faturas de forma automática (a cada 5 dias) ou sob demanda manual.
 
 on:
   schedule:
