@@ -1,4 +1,4 @@
-# Scripts para o SisFinance - Gerenciamento de Faturas de Cartão de Crédito
+# SisFinance - Sistema de Gestão de Finanças Pessoais
 
 Este repositório contém scripts para automatizar a gestão do SisFinance (Sistema de Gestão de Finanças Pessoais), operando a lógica de negócios em Python a partir com um banco de dados PostgreSQL.
 
