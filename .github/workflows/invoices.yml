@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  run-invoice-script:
+  manage_invoices:
     runs-on: ubuntu-latest
 
     steps:
