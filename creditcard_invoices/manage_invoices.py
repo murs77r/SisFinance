@@ -284,95 +284,32 @@ def prepare_changes_for_batch(
 
         curr_period_date = start_period_dt
 
-        periods_by_card = sorted([
-            (p, uc_id) for (uc_id, p) in existing_invoices.keys() if uc_id == card_id
+        periods_sorted = sorted([
+            p for (uc_id, p) in existing_invoices.keys() if uc_id == card_id
         ])
-        
-        closing_date_changes = {}
+        first_target_invoice_key = None
+        previous_invoice_key = None
 
-        for period_str, _ in periods_by_card:
-            key = (card_id, period_str)
+        for idx, period in enumerate(periods_sorted):
+            key = (card_id, period)
             invoice = existing_invoices[key]
-            
-            period_parts = period_str.split('-')
-            if len(period_parts) != 2:
-                continue
-                
-            year = int(period_parts[0])
-            month = int(period_parts[1])
-            
             status_val = invoice.get('creditcard_invoices_status')
             file_url = invoice.get('creditcard_invoices_file_url')
             due_date = invoice.get('creditcard_invoices_due_date')
-            
-            if str(status_val) != 'Aberta' or file_url is not None or (due_date is not None and due_date <= now_brt.date()):
-                continue
-                
-            previous_closing = None
-            period_idx = periods_by_card.index((period_str, card_id))
-            
-            if period_idx > 0:
-                prev_period = periods_by_card[period_idx - 1][0]
-                prev_key = (card_id, prev_period)
-                
-                if prev_key in closing_date_changes:
-                    previous_closing = closing_date_changes[prev_key]
-                else:
-                    previous_closing = existing_invoices[prev_key].get('creditcard_invoices_closing_date')
-            else:
-                previous_closing = last_closing_date
-                
-            calculated_dates = calculate_invoice_dates(
-                card, year, month, previous_closing, br_holidays
-            )
-            
-            current_closing = invoice.get('creditcard_invoices_closing_date')
-            calculated_closing = calculated_dates["closing"]
-            
-            if current_closing != calculated_closing:
-                closing_date_changes[key] = calculated_closing
-                
-                invoice_id = invoice['creditcard_invoices_id']
-                if invoice_id not in updates_batch_dict:
-                    updates_batch_dict[invoice_id] = {
-                        'creditcard_invoices_id': invoice_id,
-                        'creditcard_invoices_opening_date': calculated_dates["opening"],
-                        'creditcard_invoices_closing_date': calculated_closing,
-                        'creditcard_invoices_due_date': calculated_dates["due"],
-                        'creditcard_invoices_last_update': now_brt
-                    }
-        
-        for i, (period_str, _) in enumerate(periods_by_card):
-            key = (card_id, period_str)
-            
-            if i > 0:
-                prev_period = periods_by_card[i-1][0]
-                prev_key = (card_id, prev_period)
-                
-                if prev_key in closing_date_changes:
-                    new_prev_closing = closing_date_changes[prev_key]
-                    invoice = existing_invoices[key]
-                    invoice_id = invoice['creditcard_invoices_id']
-                    
-                    new_opening_date = new_prev_closing + timedelta(days=1)
-                    
-                    if invoice_id in updates_batch_dict:
-                        updates_batch_dict[invoice_id]['creditcard_invoices_opening_date'] = new_opening_date
-                    else:
-                        status_val = invoice.get('creditcard_invoices_status')
-                        file_url = invoice.get('creditcard_invoices_file_url')
-                        due_date = invoice.get('creditcard_invoices_due_date')
-                        
-                        if (str(status_val) == 'Aberta' and 
-                            file_url is None and 
-                            (due_date is None or due_date > now_brt.date())):
-                            updates_batch_dict[invoice_id] = {
-                                'creditcard_invoices_id': invoice_id,
-                                'creditcard_invoices_opening_date': new_opening_date,
-                                'creditcard_invoices_closing_date': invoice.get('creditcard_invoices_closing_date'),
-                                'creditcard_invoices_due_date': invoice.get('creditcard_invoices_due_date'),
-                                'creditcard_invoices_last_update': now_brt
-                            }
+            if (str(status_val) == 'Aberta'
+                    and file_url is None
+                    and due_date is not None
+                    and due_date > now_brt.date()):
+                first_target_invoice_key = key
+                if idx > 0:
+                    previous_invoice_key = (card_id, periods_sorted[idx - 1])
+                break
+
+        opening_date_override = None
+        if first_target_invoice_key and previous_invoice_key:
+            prev_closing_date = existing_invoices[previous_invoice_key].get('creditcard_invoices_closing_date')
+            if prev_closing_date:
+                opening_date_override = prev_closing_date + timedelta(days=1)
 
         for _ in range(months_ahead):
             target_year = curr_period_date.year
@@ -380,28 +317,15 @@ def prepare_changes_for_batch(
             statement_period = curr_period_date.strftime('%Y-%m')
 
             try:
-                recent_key = (card_id, statement_period)
-                recent_prev_period = None
-                
-                for period, cid in periods_by_card:
-                    if period < statement_period and (recent_prev_period is None or period > recent_prev_period):
-                        recent_prev_period = period
-                
-                if recent_prev_period:
-                    prev_key = (card_id, recent_prev_period)
-                    if prev_key in closing_date_changes:
-                        last_closing_date = closing_date_changes[prev_key]
-                    else:
-                        prev_invoice = existing_invoices.get(prev_key)
-                        if prev_invoice:
-                            last_closing_date = prev_invoice.get('creditcard_invoices_closing_date')
-                
                 calculated_dates = calculate_invoice_dates(
                     card, target_year, target_month, last_closing_date, br_holidays
                 )
                 opening_dt = calculated_dates["opening"]
                 closing_dt = calculated_dates["closing"]
                 due_dt = calculated_dates["due"]
+
+                if first_target_invoice_key == (card_id, statement_period) and opening_date_override:
+                    opening_dt = opening_date_override
 
                 if closing_dt:
                     last_closing_date = closing_dt
@@ -432,6 +356,22 @@ def prepare_changes_for_batch(
                     'creditcard_invoices_file_url': None,
                     'creditcard_invoices_last_update': now_brt
                 })
+            else:
+                status_val = existing_invoice_data.get('creditcard_invoices_status')
+                if (str(status_val) == 'Aberta'
+                        and existing_invoice_data.get('creditcard_invoices_file_url') is None
+                        and (existing_invoice_data.get('creditcard_invoices_opening_date') != opening_dt or
+                             existing_invoice_data.get('creditcard_invoices_closing_date') != closing_dt or
+                             existing_invoice_data.get('creditcard_invoices_due_date') != due_dt)):
+                    invoice_id_to_update = existing_invoice_data['creditcard_invoices_id']
+                    if invoice_id_to_update not in updates_batch_dict:
+                        updates_batch_dict[invoice_id_to_update] = {
+                            'creditcard_invoices_id': invoice_id_to_update,
+                            'creditcard_invoices_opening_date': opening_dt,
+                            'creditcard_invoices_closing_date': closing_dt,
+                            'creditcard_invoices_due_date': due_dt,
+                            'creditcard_invoices_last_update': now_brt
+                        }
             curr_period_date += relativedelta(months=1)
 
     return inserts_batch, list(updates_batch_dict.values()), deletes_batch_set
