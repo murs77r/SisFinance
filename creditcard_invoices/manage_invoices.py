@@ -311,14 +311,21 @@ def prepare_changes_for_batch(
             if prev_closing_date:
                 opening_date_override = prev_closing_date + timedelta(days=1)
 
+        recalculated_dates_map = {}
+        last_closing_date_running = last_closing_date
+
         for _ in range(months_ahead):
             target_year = curr_period_date.year
             target_month = curr_period_date.month
             statement_period = curr_period_date.strftime('%Y-%m')
 
             try:
+                if statement_period in recalculated_dates_map:
+                    prev_dates = recalculated_dates_map[statement_period]
+                    last_closing_date_running = prev_dates["closing"]
+
                 calculated_dates = calculate_invoice_dates(
-                    card, target_year, target_month, last_closing_date, br_holidays
+                    card, target_year, target_month, last_closing_date_running, br_holidays
                 )
                 opening_dt = calculated_dates["opening"]
                 closing_dt = calculated_dates["closing"]
@@ -327,8 +334,13 @@ def prepare_changes_for_batch(
                 if first_target_invoice_key == (card_id, statement_period) and opening_date_override:
                     opening_dt = opening_date_override
 
-                if closing_dt:
-                    last_closing_date = closing_dt
+                recalculated_dates_map[statement_period] = {
+                    "opening": opening_dt,
+                    "closing": closing_dt,
+                    "due": due_dt
+                }
+
+                last_closing_date_running = closing_dt
 
             except Exception as e:
                 logger.error(f"Erro no cálculo de datas para user_card {card_id} período {statement_period}: {e}")
