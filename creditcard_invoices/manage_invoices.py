@@ -283,6 +283,34 @@ def prepare_changes_for_batch(
             last_closing_date = existing_invoices[last_period_key].get('creditcard_invoices_closing_date')
 
         curr_period_date = start_period_dt
+
+        periods_sorted = sorted([
+            p for (uc_id, p) in existing_invoices.keys() if uc_id == card_id
+        ])
+        first_target_invoice_key = None
+        previous_invoice_key = None
+
+        for idx, period in enumerate(periods_sorted):
+            key = (card_id, period)
+            invoice = existing_invoices[key]
+            status_val = invoice.get('creditcard_invoices_status')
+            file_url = invoice.get('creditcard_invoices_file_url')
+            due_date = invoice.get('creditcard_invoices_due_date')
+            if (str(status_val) == 'Aberta'
+                    and file_url is None
+                    and due_date is not None
+                    and due_date > now_brt.date()):
+                first_target_invoice_key = key
+                if idx > 0:
+                    previous_invoice_key = (card_id, periods_sorted[idx - 1])
+                break
+
+        opening_date_override = None
+        if first_target_invoice_key and previous_invoice_key:
+            prev_closing_date = existing_invoices[previous_invoice_key].get('creditcard_invoices_closing_date')
+            if prev_closing_date:
+                opening_date_override = prev_closing_date + timedelta(days=1)
+
         for _ in range(months_ahead):
             target_year = curr_period_date.year
             target_month = curr_period_date.month
@@ -295,6 +323,9 @@ def prepare_changes_for_batch(
                 opening_dt = calculated_dates["opening"]
                 closing_dt = calculated_dates["closing"]
                 due_dt = calculated_dates["due"]
+
+                if first_target_invoice_key == (card_id, statement_period) and opening_date_override:
+                    opening_dt = opening_date_override
 
                 if closing_dt:
                     last_closing_date = closing_dt
