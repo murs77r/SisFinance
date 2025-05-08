@@ -257,6 +257,9 @@ def prepare_changes_for_batch(
     inserts_batch = []
     updates_batch_dict = {}
     deletes_batch_set = set()
+    
+    # Dicionário para rastrear modificações nos closing_dates e propagar para invoices subsequentes
+    modified_closing_dates = {}
 
     for card in card_details_batch:
         card_id = card['user_creditcards_id']
@@ -359,20 +362,61 @@ def prepare_changes_for_batch(
             else:
                 status_val = existing_invoice_data.get('creditcard_invoices_status')
                 if (str(status_val) == 'Aberta'
-                        and existing_invoice_data.get('creditcard_invoices_file_url') is None
-                        and (existing_invoice_data.get('creditcard_invoices_opening_date') != opening_dt or
-                             existing_invoice_data.get('creditcard_invoices_closing_date') != closing_dt or
-                             existing_invoice_data.get('creditcard_invoices_due_date') != due_dt)):
-                    invoice_id_to_update = existing_invoice_data['creditcard_invoices_id']
-                    if invoice_id_to_update not in updates_batch_dict:
-                        updates_batch_dict[invoice_id_to_update] = {
-                            'creditcard_invoices_id': invoice_id_to_update,
-                            'creditcard_invoices_opening_date': opening_dt,
-                            'creditcard_invoices_closing_date': closing_dt,
-                            'creditcard_invoices_due_date': due_dt,
-                            'creditcard_invoices_last_update': now_brt
-                        }
+                        and existing_invoice_data.get('creditcard_invoices_file_url') is None):
+                    
+                    # Verificar se o closing_date está sendo modificado
+                    existing_closing_date = existing_invoice_data.get('creditcard_invoices_closing_date')
+                    if existing_closing_date != closing_dt:
+                        # Rastrear esta alteração para propagar para a fatura do mês seguinte
+                        modified_closing_dates[invoice_key] = closing_dt
+                    
+                    if (existing_invoice_data.get('creditcard_invoices_opening_date') != opening_dt or
+                        existing_invoice_data.get('creditcard_invoices_closing_date') != closing_dt or
+                        existing_invoice_data.get('creditcard_invoices_due_date') != due_dt):
+                        
+                        invoice_id_to_update = existing_invoice_data['creditcard_invoices_id']
+                        if invoice_id_to_update not in updates_batch_dict:
+                            updates_batch_dict[invoice_id_to_update] = {
+                                'creditcard_invoices_id': invoice_id_to_update,
+                                'creditcard_invoices_opening_date': opening_dt,
+                                'creditcard_invoices_closing_date': closing_dt,
+                                'creditcard_invoices_due_date': due_dt,
+                                'creditcard_invoices_last_update': now_brt
+                            }
             curr_period_date += relativedelta(months=1)
+
+    # Segunda etapa: propagar alterações de closing_date para opening_date das faturas subsequentes
+    for (card_id, period), new_closing_date in modified_closing_dates.items():
+        # Determinar o próximo período
+        period_dt = datetime.strptime(period, "%Y-%m").date()
+        next_period_dt = period_dt + relativedelta(months=1)
+        next_period = next_period_dt.strftime("%Y-%m")
+        next_invoice_key = (card_id, next_period)
+        
+        # Verificar se a fatura do próximo período existe
+        if next_invoice_key in existing_invoices:
+            next_invoice = existing_invoices[next_invoice_key]
+            next_invoice_id = next_invoice['creditcard_invoices_id']
+            status_val = next_invoice.get('creditcard_invoices_status')
+            file_url = next_invoice.get('creditcard_invoices_file_url')
+            
+            # Só modificar se a fatura estiver aberta e sem arquivo anexado
+            if (str(status_val) == 'Aberta' and file_url is None):
+                # Calcular o novo opening_date (dia seguinte ao closing_date modificado)
+                new_opening_date = new_closing_date + timedelta(days=1)
+                
+                # Se a fatura já estiver na lista de atualizações, atualizar apenas o opening_date
+                if next_invoice_id in updates_batch_dict:
+                    updates_batch_dict[next_invoice_id]['creditcard_invoices_opening_date'] = new_opening_date
+                else:
+                    # Caso contrário, adicionar à lista de atualizações
+                    updates_batch_dict[next_invoice_id] = {
+                        'creditcard_invoices_id': next_invoice_id,
+                        'creditcard_invoices_opening_date': new_opening_date,
+                        'creditcard_invoices_closing_date': next_invoice.get('creditcard_invoices_closing_date'),
+                        'creditcard_invoices_due_date': next_invoice.get('creditcard_invoices_due_date'),
+                        'creditcard_invoices_last_update': now_brt
+                    }
 
     return inserts_batch, list(updates_batch_dict.values()), deletes_batch_set
 
