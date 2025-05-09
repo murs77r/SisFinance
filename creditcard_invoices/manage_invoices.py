@@ -27,7 +27,7 @@ db_password = os.getenv("DB_PASSWORD")
 db_host = os.getenv("DB_HOST", "localhost")
 db_port = os.getenv("DB_PORT", "5432")
 
-lookahead_months = 24
+lookahead_months = 25
 db_timezone_str = 'America/Sao_Paulo'
 db_timezone = pytz.timezone(db_timezone_str)
 
