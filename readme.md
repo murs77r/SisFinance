@@ -17,6 +17,12 @@ Já em relação à apresentação do sistema (ou Front-End), está sendo feita 
     - Atualização de datas de abertura, fechamento e vencimento conforme regras de negócio.
     - Exclusão de faturas de cartões desativados sem movimentação.
     - Execução automática a cada 5 dias ou sob demanda manual.
+### Gerenciamento de criação ou remoção de parcelas
+- **Situação Atual:** Em implementação
+- **Linguagem:** Python
+- **Objetivo:**
+    - Criação ou remoção, em tabela personalizada, de dados de parcelamentos em transaçãoes com cartão de crédito parcelado.
+    - Execução sob demanda automática (via chamamento externo, com autenticação) ou manual. 
 ### Gerenciamento de valores de faturas
 - **Situação Atual:** Em implementação
 - **Linguagem:** Python
