@@ -472,7 +472,7 @@ def main():
     conn = None
     try:
         conn = get_db_connection()
-        now_brt = datetime.now(db_timezone)
+        now_brt = datetime.now(db_timezone).replace(tzinfo=None)
 
         all_card_ids = fetch_all_card_ids(conn)
         total_cards = len(all_card_ids)
