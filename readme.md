@@ -4,7 +4,7 @@ Este repositório contém scripts para automatizar a gestão do SisFinance (Sist
 
 ## Informações, Banco de Dados e Front-End
 
-A estrutura do Banco de Dados, com nome `SisFinance` é composta por tabelas com tipos de dados personalizados e regras de integridade específicas, construídos sob demanda específica para uso pelo sistema. A estrutura está em `sql_bd/tables.md`.
+A estrutura do Banco de Dados, com nome `SisFinance` é composta por tabelas com tipos de dados personalizados e regras de integridade específicas, construídos sob demanda específica para uso pelo sistema. A estrutura e comando SQL de criação estão em `structure_bd.sql`.
 
 Já em relação à apresentação do sistema (ou Front-End), está sendo feita por meio do `Google AppSheet` (com interface gráfica com regras próprias adaptadas ao sistema).
 
