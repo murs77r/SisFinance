@@ -107,7 +107,7 @@ def calculate_invoice_dates(card_details: dict, target_year: int, target_month: 
 def fetch_all_card_ids(conn) -> list:
     """Busca todos os IDs de cartões de crédito dos usuários."""
     with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-        cur.execute("SELECT user_creditcards_id FROM public.user_creditcards ORDER BY user_creditcards_id;")
+        cur.execute("SELECT user_creditcards_id FROM core.user_creditcards ORDER BY user_creditcards_id;")
         rows = cur.fetchall()
     return [row['user_creditcards_id'] for row in rows]
 
@@ -125,8 +125,8 @@ def fetch_card_details(cursor, card_ids_batch: list) -> list:
                 uc.user_creditcards_due_day,
                 uc.user_creditcards_status,
                 cc.creditcards_postpone_due_date_to_business_day
-            FROM public.user_creditcards uc
-            JOIN public.creditcards cc ON uc.user_creditcards_creditcard_id = cc.creditcards_id
+            FROM core.user_creditcards uc
+            JOIN core.creditcards cc ON uc.user_creditcards_creditcard_id = cc.creditcards_id
             WHERE uc.user_creditcards_id = ANY(%s);
         """
         cursor.execute(query, (list(card_ids_batch),))
@@ -152,7 +152,7 @@ def fetch_existing_invoices(cursor, card_ids_batch: list, start_period_str: str,
                 creditcard_invoices_status,
                 creditcard_invoices_amount,
                 creditcard_invoices_file_url
-            FROM public.creditcard_invoices
+            FROM transactions.creditcard_invoices
             WHERE creditcard_invoices_user_creditcard_id = ANY(%s)
               AND creditcard_invoices_statement_period >= %s
               AND creditcard_invoices_statement_period <= %s;
@@ -170,13 +170,13 @@ def execute_db_changes(cursor, inserts: list, updates: list, deletes: set, now_b
     """Executa operações de inserção, atualização e exclusão em lote no banco de dados."""
     try:
         if deletes:
-            delete_query = "DELETE FROM public.creditcard_invoices WHERE creditcard_invoices_id = ANY(%s);"
+            delete_query = "DELETE FROM transactions.creditcard_invoices WHERE creditcard_invoices_id = ANY(%s);"
             cursor.execute(delete_query, (list(deletes),))
             logger.info(f"{cursor.rowcount} faturas marcadas para exclusão (serão efetivadas no commit).")
 
         if inserts:
             insert_query = """
-                INSERT INTO public.creditcard_invoices (
+                INSERT INTO transactions.creditcard_invoices (
                     creditcard_invoices_id, creditcard_invoices_user_creditcard_id,
                     creditcard_invoices_user_id, creditcard_invoices_creation_datetime,
                     creditcard_invoices_opening_date, creditcard_invoices_closing_date,
@@ -202,7 +202,7 @@ def execute_db_changes(cursor, inserts: list, updates: list, deletes: set, now_b
 
         if updates:
             update_query = """
-                UPDATE public.creditcard_invoices AS inv
+                UPDATE transactions.creditcard_invoices AS inv
                 SET
                     creditcard_invoices_opening_date = data.opening_dt,
                     creditcard_invoices_closing_date = data.closing_dt,
@@ -210,7 +210,7 @@ def execute_db_changes(cursor, inserts: list, updates: list, deletes: set, now_b
                     creditcard_invoices_last_update = data.last_updt
                 FROM (VALUES %s) AS data(invoice_id, opening_dt, closing_dt, due_dt, last_updt)
                 WHERE inv.creditcard_invoices_id = data.invoice_id
-                  AND inv.creditcard_invoices_status = 'Aberta'::public.invoice_status
+                  AND inv.creditcard_invoices_status = 'Aberta'::transactions.invoice_status
                   AND inv.creditcard_invoices_file_url IS NULL;
             """
             values_to_update = [
