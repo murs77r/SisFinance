@@ -21,13 +21,14 @@ Já em relação à apresentação do sistema (ou Front-End), está sendo feita 
 ### Gerenciamento de criação ou remoção de parcelas
 > Prioridade Máxima
 - **Situação Atual:** Em implementação
-- **Linguagem:** Python
+- **Linguagem:** Python (`manage_installments`)
 - **Objetivo:**
-    - Criação ou remoção, em tabela personalizada, de dados de parcelamentos em transaçãoes com cartão de crédito parcelado.
+    - Criação ou remoção, em tabela personalizada, de dados de parcelamentos em transações com cartão de crédito parcelado.
+    - **PENDENTE URGENTE** - Atualiza os dados de parcelamentos em transações com cartão de crédito parcelado somente se o valor total das parcelas for diferente do valor total do produto.
     - Execução sob demanda automática (via chamamento externo, com autenticação) ou manual. 
 ### Gerenciamento de valores de faturas
 > Prioridade Máxima
-- **Situação Atual:** Em implementação
+- **Situação Atual:** Em implementação avançada (falta ajustes de código)
 - **Linguagem:** Python
 - **Objetivo:**
     - Cálculo automático de valores das faturas, para transações com cartão de crédito à vista ou para transações com cartão de crédito parcelado.
@@ -84,9 +85,13 @@ Já em relação à apresentação do sistema (ou Front-End), está sendo feita 
 
 ## Estrutura das Pastas
 - Em relação ao gerenciamento de faturas (`manage_invoices`):
-    - `creditcard_invoices/manage_invoices.py`: Script principal de gerenciamento de faturas.
+    - `creditcard_invoices/manage_invoices.py`: Script de gerenciamento de faturas.
     - `creditcard_invoices/requirements.txt`: Dependências Python necessárias.
     - `.github/workflows/manage_invoices.yml`: Workflow do GitHub Actions para execução automatizada.
+- Em relação à geração de parcelas (`manage_installments`):
+    - `creditcard_invoices/manage_installments.py`: Script para criação, modificação ou remoção de faturas.
+    - `creditcard_invoices/requirements.txt`: Dependências Python necessárias.
+    - `.github/workflows/manage_installments.yml`: Workflow do GitHub Actions para execução automatizada.
 
 ## Licença
 Uso interno/proprietário.
