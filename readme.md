@@ -23,7 +23,7 @@ Já em relação à apresentação do sistema (ou Front-End), está sendo feita 
 - **Situação Atual:** Em implementação
 - **Linguagem:** Python (`manage_installments`)
 - **Objetivo:**
-    - Criação ou remoção, em tabela personalizada, de dados de parcelamentos em transações com cartão de crédito parcelado.
+    - Criação ou remoção, em tabela personalizada, de dados de parcelamentos em transações com cartão de crédito parcelado (sendo que cada parcelamento será correspondente a uma fatura existente).
     - **PENDENTE URGENTE** - Atualiza os dados de parcelamentos em transações com cartão de crédito parcelado somente se o valor total das parcelas for diferente do valor total do produto.
     - Execução sob demanda automática (via chamamento externo, com autenticação) ou manual. 
 ### Gerenciamento de valores de faturas

@@ -76,15 +76,99 @@ def get_month_enum_from_date(target_date: date) -> str:
     return month_names[target_date.month]
 
 def distribute_value(total_value, n_installments):
-    """Distribui um valor em n parcelas iguais sem erros de arredondamento."""
+    """
+    Distribui um valor em n parcelas iguais sem erros de arredondamento.
+    
+    Implementa uma distribuição de valores que garante:
+    1. Todas as parcelas exceto a última têm o mesmo valor (arredondado para 2 casas decimais)
+    2. A última parcela compensa qualquer diferença de arredondamento
+    3. A soma exata de todas as parcelas é igual ao valor total original
+    """
+    if n_installments <= 0:
+        return []
+    
+    if n_installments == 1:
+        return [total_value]
+        
+    # Valor por parcela com precisão alta para cálculos intermediários
     base_value = total_value / n_installments
-    values = [round(base_value, 2) for _ in range(n_installments)]
     
-    # Ajusta a diferença de arredondamento na última parcela
-    difference = total_value - sum(values)
-    values[-1] = round(values[-1] + difference, 2)
+    # Arredondar para 2 casas decimais para as n-1 primeiras parcelas
+    parcels = [round(base_value, 2) for _ in range(n_installments - 1)]
     
-    return values
+    # Calcular o valor da última parcela para compensar diferenças de arredondamento
+    last_parcel = round(total_value - sum(parcels), 2)
+    parcels.append(last_parcel)
+    
+    # Verificação de garantia (a soma deve ser exatamente igual ao total)
+    assert abs(sum(parcels) - total_value) < 0.0001, "Erro na distribuição de valores"
+    
+    return parcels
+
+def needs_installment_update(conn, transaction_id, total_value, total_fees) -> bool:
+    """
+    Verifica se as parcelas de uma transação precisam ser atualizadas baseado no valor total.
+    
+    Retorna True se:
+    1. Não existirem parcelas para a transação
+    2. A soma das parcelas existentes for diferente do valor total da transação
+    3. O número de parcelas existentes for insuficiente
+    
+    A verificação leva em conta uma margem de tolerância para erros de arredondamento.
+    """
+    query = """
+        SELECT 
+            COUNT(*) as parcelas_count,
+            COALESCE(SUM(creditcard_installments_base_value), 0) as soma_base,
+            COALESCE(SUM(creditcard_installments_fees_taxes), 0) as soma_taxas
+        FROM transactions.creditcard_installments
+        WHERE creditcard_installments_transaction_id = %s
+    """
+    
+    query_total_count = """
+        SELECT creditcard_transactions_installment_count
+        FROM transactions.creditcard_transactions
+        WHERE creditcard_transactions_id = %s
+    """
+    
+    with conn.cursor() as cur:
+        # Verificar parcelas existentes
+        cur.execute(query, (transaction_id,))
+        result = cur.fetchone()
+        parcelas_count, soma_base, soma_taxas = result
+        
+        # Verificar número total esperado de parcelas
+        cur.execute(query_total_count, (transaction_id,))
+        total_count_result = cur.fetchone()
+        if total_count_result is None:
+            # Transação não encontrada
+            logger.warning(f"Transação {transaction_id} não encontrada ao verificar necessidade de atualização.")
+            return False
+        
+        total_expected_count = total_count_result[0]
+        
+        # Se não existem parcelas, precisa criar
+        if parcelas_count == 0:
+            return True
+        
+        # Se o número de parcelas é insuficiente, precisa completar
+        if parcelas_count < total_expected_count:
+            return True
+        
+        # Margem de tolerância para erros de arredondamento (1 centavo por parcela)
+        tolerance = 0.01 * parcelas_count
+        
+        # Verificar diferença entre valor total e soma das parcelas
+        value_difference = abs(total_value - soma_base)
+        fees_difference = abs(total_fees - soma_taxas)
+        
+        # Se a diferença for maior que a tolerância, precisa atualizar
+        if value_difference > tolerance or fees_difference > tolerance:
+            logger.info(f"Transação {transaction_id} precisa de atualização. " 
+                       f"Diferença de valor: {value_difference}, diferença de taxas: {fees_difference}")
+            return True
+        
+        return False
 
 # --- Operações com o banco de dados ---
 
@@ -113,13 +197,35 @@ def fetch_unprocessed_installment_transactions(conn, batch_start: int, batch_siz
         JOIN core.user_creditcards uc ON ct.creditcard_transactions_user_card_id = uc.user_creditcards_id
         WHERE ct.creditcard_transactions_is_installment = TRUE
           AND ct.creditcard_transactions_status = 'Efetuado'
-          AND NOT EXISTS (
-              -- Transações que não têm todas as parcelas registradas
-              SELECT 1 
-              FROM transactions.creditcard_installments ci
-              WHERE ci.creditcard_installments_transaction_id = ct.creditcard_transactions_id
-              GROUP BY ci.creditcard_installments_transaction_id
-              HAVING COUNT(*) = ct.creditcard_transactions_installment_count
+          AND (
+              -- Transações que não têm parcelas ou têm número insuficiente
+              NOT EXISTS (
+                  SELECT 1 
+                  FROM transactions.creditcard_installments ci
+                  WHERE ci.creditcard_installments_transaction_id = ct.creditcard_transactions_id
+                  GROUP BY ci.creditcard_installments_transaction_id
+                  HAVING COUNT(*) = ct.creditcard_transactions_installment_count
+              )
+              OR 
+              -- Transações que têm diferença de valor entre a soma das parcelas e o valor total
+              EXISTS (
+                  SELECT 1
+                  FROM (
+                      SELECT 
+                          COUNT(*) as parcelas_count,
+                          COALESCE(SUM(ci.creditcard_installments_base_value), 0) as soma_base,
+                          COALESCE(SUM(ci.creditcard_installments_fees_taxes), 0) as soma_taxas
+                      FROM transactions.creditcard_installments ci
+                      WHERE ci.creditcard_installments_transaction_id = ct.creditcard_transactions_id
+                      GROUP BY ci.creditcard_installments_transaction_id
+                  ) as sums
+                  WHERE 
+                      sums.parcelas_count = ct.creditcard_transactions_installment_count
+                      AND (
+                          ABS(sums.soma_base - ct.creditcard_transactions_base_value) > (0.01 * sums.parcelas_count)
+                          OR ABS(sums.soma_taxas - ct.creditcard_transactions_fees_taxes) > (0.01 * sums.parcelas_count)
+                      )
+              )
           )
         ORDER BY ct.creditcard_transactions_implementation_datetime
         OFFSET %s
@@ -144,12 +250,35 @@ def count_total_unprocessed_transactions(conn) -> int:
         FROM transactions.creditcard_transactions ct
         WHERE ct.creditcard_transactions_is_installment = TRUE
           AND ct.creditcard_transactions_status = 'Efetuado'
-          AND NOT EXISTS (
-              SELECT 1 
-              FROM transactions.creditcard_installments ci
-              WHERE ci.creditcard_installments_transaction_id = ct.creditcard_transactions_id
-              GROUP BY ci.creditcard_installments_transaction_id
-              HAVING COUNT(*) = ct.creditcard_transactions_installment_count
+          AND (
+              -- Transações que não têm parcelas ou têm número insuficiente
+              NOT EXISTS (
+                  SELECT 1 
+                  FROM transactions.creditcard_installments ci
+                  WHERE ci.creditcard_installments_transaction_id = ct.creditcard_transactions_id
+                  GROUP BY ci.creditcard_installments_transaction_id
+                  HAVING COUNT(*) = ct.creditcard_transactions_installment_count
+              )
+              OR 
+              -- Transações que têm diferença de valor entre a soma das parcelas e o valor total
+              EXISTS (
+                  SELECT 1
+                  FROM (
+                      SELECT 
+                          COUNT(*) as parcelas_count,
+                          COALESCE(SUM(ci.creditcard_installments_base_value), 0) as soma_base,
+                          COALESCE(SUM(ci.creditcard_installments_fees_taxes), 0) as soma_taxas
+                      FROM transactions.creditcard_installments ci
+                      WHERE ci.creditcard_installments_transaction_id = ct.creditcard_transactions_id
+                      GROUP BY ci.creditcard_installments_transaction_id
+                  ) as sums
+                  WHERE 
+                      sums.parcelas_count = ct.creditcard_transactions_installment_count
+                      AND (
+                          ABS(sums.soma_base - ct.creditcard_transactions_base_value) > (0.01 * sums.parcelas_count)
+                          OR ABS(sums.soma_taxas - ct.creditcard_transactions_fees_taxes) > (0.01 * sums.parcelas_count)
+                      )
+              )
           )
     """
     
@@ -194,10 +323,11 @@ def fetch_existing_installments(conn, transaction_ids: list) -> dict:
 
 def find_or_create_invoices(conn, installment_periods: dict) -> dict:
     """
-    Busca ou cria faturas para os períodos necessários.
+    Busca faturas existentes para os períodos necessários.
     
-    Usa uma abordagem de "encontrar ou criar" (find-or-create) que minimiza
-    consultas ao banco de dados agrupando operações por usuário e período.
+    Em vez de criar faturas automaticamente, apenas identifica quais já existem e 
+    alerta sobre as ausentes. Isso garante que parcelas só serão associadas a faturas
+    previamente criadas e configuradas corretamente.
     
     :param installment_periods: Dicionário com chave (user_card_id, ano, mês) e 
                                 valor contendo informações de parcela/período
@@ -215,7 +345,8 @@ def find_or_create_invoices(conn, installment_periods: dict) -> dict:
         SELECT 
             creditcard_invoices_user_creditcard_id, 
             creditcard_invoices_statement_period,
-            creditcard_invoices_id
+            creditcard_invoices_id,
+            creditcard_invoices_status
         FROM transactions.creditcard_invoices
         WHERE (creditcard_invoices_user_creditcard_id, creditcard_invoices_statement_period) = ANY(%s)
     """
@@ -236,12 +367,16 @@ def find_or_create_invoices(conn, installment_periods: dict) -> dict:
             
             invoices_map[period_key] = row['creditcard_invoices_id']
         
-        # Determinar quais faturas precisam ser criadas
+        # Determinar quais faturas estão ausentes
         missing_periods = [p for p in periods_to_check if p not in invoices_map]
         
         if missing_periods:
-            logger.warning(f"Não foram encontradas {len(missing_periods)} faturas necessárias. "
-                          f"É recomendado executar o script manage_invoices.py para criar as faturas ausentes.")
+            missing_info = ", ".join([f"Cartão: {p[0]}, Período: {p[1]}-{p[2]:02d}" for p in missing_periods[:5]])
+            if len(missing_periods) > 5:
+                missing_info += f" e mais {len(missing_periods) - 5} períodos"
+                
+            logger.warning(f"Não foram encontradas {len(missing_periods)} faturas necessárias: {missing_info}. "
+                          f"Execute o script manage_invoices.py para criar as faturas ausentes.")
     
     return invoices_map
 
@@ -334,26 +469,49 @@ def calculate_installment_distribution(transaction: dict, existing_installments:
     total_value = transaction['creditcard_transactions_base_value']
     total_fees = transaction['creditcard_transactions_fees_taxes']
     
-    # Calcular valor base por parcela (distribuição proporcional)
-    base_per_installment = distribute_value(total_value, total_installments)
+    # Calcular valores por parcela (distribuição proporcional)
+    base_values = distribute_value(total_value, total_installments)
     
-    # Ajustar o valor da última parcela para compensar diferenças de arredondamento
-    last_installment_adjustment = total_value - (base_per_installment * (total_installments - 1))
-    
-    # Distribuir as taxas de forma proporcional
-    fees_per_installment = 0
+    # Distribuir as taxas (se houver)
+    fees_values = []
     if total_fees > 0:
-        fees_per_installment = round(total_fees / total_installments, 2)
-        last_fees_adjustment = total_fees - (fees_per_installment * (total_installments - 1))
+        fees_values = distribute_value(total_fees, total_installments)
     else:
-        last_fees_adjustment = 0
+        fees_values = [0] * total_installments
     
     # Descrição base para as parcelas
     transaction_desc = transaction['creditcard_transactions_description'] or "Compra parcelada"
     
     installments_to_create = []
     
-    # Criar cada parcela que ainda não existe
+    # Primeiro, verificar se todas as faturas necessárias existem
+    all_invoices_exist = True
+    missing_invoice_periods = []
+    
+    for i in range(1, total_installments + 1):
+        if i in transaction_existing:
+            continue  # Pular se já existe
+            
+        months_to_add = i - 1
+        target_date = date(initial_year, initial_month_num, 1) + relativedelta(months=months_to_add)
+        
+        # Verificar se existe fatura para este período
+        period_key = (transaction['creditcard_transactions_user_card_id'], target_date.year, target_date.month)
+        
+        if period_key not in invoices:
+            all_invoices_exist = False
+            missing_invoice_periods.append(f"{target_date.year}-{target_date.month:02d}")
+    
+    # Se faltam faturas, registrar o problema
+    if not all_invoices_exist:
+        missing_periods_str = ", ".join(missing_invoice_periods[:5])
+        if len(missing_invoice_periods) > 5:
+            missing_periods_str += f" e mais {len(missing_invoice_periods) - 5} períodos"
+            
+        logger.warning(f"Transação {transaction_id}: faltam faturas para os períodos {missing_periods_str}. "
+                     f"Parcelas não serão criadas para estes períodos.")
+    
+    # Criar cada parcela que ainda não existe (e que tenha fatura)
     for i in range(1, total_installments + 1):
         # Pular se a parcela já existe
         if i in transaction_existing:
@@ -366,13 +524,9 @@ def calculate_installment_distribution(transaction: dict, existing_installments:
         target_month_enum = get_month_enum_from_date(target_date)
         target_year = target_date.year
         
-        # Determinar o valor desta parcela (ajuste na última)
-        if i == total_installments:
-            base_value = last_installment_adjustment
-            fees_value = last_fees_adjustment
-        else:
-            base_value = base_per_installment
-            fees_value = fees_per_installment
+        # Determinar o valor desta parcela
+        base_value = base_values[i-1]
+        fees_value = fees_values[i-1]
         
         # Gerar descrição específica para esta parcela
         observations = f"{transaction_desc} - Parcela {i}/{total_installments}"
@@ -381,10 +535,8 @@ def calculate_installment_distribution(transaction: dict, existing_installments:
         period_key = (transaction['creditcard_transactions_user_card_id'], target_year, target_date.month)
         invoice_id = invoices.get(period_key)
         
-        # Se não temos uma fatura, registramos o problema mas continuamos
+        # Se não temos uma fatura, pulamos esta parcela
         if not invoice_id:
-            logger.warning(f"Fatura não encontrada para o período {target_year}-{target_date.month:02d} "
-                         f"do cartão {transaction['creditcard_transactions_user_card_id']}")
             continue
         
         # Criar dados da parcela
@@ -441,6 +593,10 @@ def process_transaction_batch(conn, batch_transactions: list, now_brt: datetime)
         
         # Para cada parcela, calcular o período correspondente
         for i in range(total_installments):
+            # Verificar se a parcela já existe
+            if i+1 in existing_installments.get(tx['creditcard_transactions_id'], {}):
+                continue
+                
             target_date = date(initial_year, initial_month_num, 1) + relativedelta(months=i)
             period_key = (card_id, target_date.year, target_date.month)
             
@@ -452,13 +608,20 @@ def process_transaction_batch(conn, batch_transactions: list, now_brt: datetime)
                     'month': target_date.month
                 }
     
-    # Buscar ou criar faturas para todos os períodos necessários
+    # Buscar faturas existentes para todos os períodos necessários
     invoices_map = find_or_create_invoices(conn, required_invoice_periods)
     
     # Preparar todas as parcelas para inserção
     all_installments_to_create = []
     
     for tx in batch_transactions:
+        # Verificar se esta transação precisa de atualização de parcelas
+        if not needs_installment_update(conn, 
+                                      tx['creditcard_transactions_id'], 
+                                      tx['creditcard_transactions_base_value'], 
+                                      tx['creditcard_transactions_fees_taxes']):
+            continue
+            
         # Calcular parcelas para esta transação
         installments = calculate_installment_distribution(
             tx, 
