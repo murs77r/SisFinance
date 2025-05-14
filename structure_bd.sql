@@ -1601,3 +1601,239 @@ WHERE creditcard_transactions_implementation_datetime >= date_trunc('month', CUR
 
 COMMENT ON VIEW transactions.view_current_month_creditcard_transactions IS 'Exibe todas as transações de cartão de crédito realizadas a partir do início do mês atual.';
 ALTER VIEW transactions.view_current_month_creditcard_transactions OWNER TO "SisFinance-adm";
+
+-- View para visualização de transações com saldo realizadas no mês atual.
+CREATE OR REPLACE VIEW transactions.view_current_month_proceeding_totals AS
+SELECT 
+    ts.transactions_saldo_user_id AS user_id,
+    ps.proceedings_name AS proceeding_name,
+    ps.proceedings_id AS proceeding_id,
+    SUM(ts.transactions_saldo_total_effective) AS total_amount,
+    COUNT(ts.transactions_saldo_id) AS transaction_count
+FROM 
+    transactions.transactions_saldo ts
+    JOIN core.users u ON ts.transactions_saldo_user_id = u.users_id
+    JOIN core.proceedings_saldo ps ON ts.transactions_saldo_proceeding_id = ps.proceedings_id
+WHERE 
+    ts.transactions_saldo_status = 'Efetuado'
+    AND ts.transactions_saldo_implementation_datetime >= date_trunc('month', CURRENT_DATE)
+    AND ts.transactions_saldo_implementation_datetime < date_trunc('month', CURRENT_DATE + INTERVAL '1 month')
+GROUP BY 
+    ts.transactions_saldo_user_id, ps.proceedings_id, ps.proceedings_name
+ORDER BY 
+    proceeding_name;
+
+COMMENT ON VIEW transactions.view_current_month_proceeding_totals IS 'Exibe a soma dos valores de transações de saldo do mês atual, agrupadas por usuário e procedimento.';
+
+-- View para visualização de transações com saldo realizadas por procedimento no próximo mês.
+CREATE OR REPLACE VIEW transactions.view_next_month_proceeding_totals AS
+SELECT 
+    ts.transactions_saldo_user_id AS user_id,
+    ps.proceedings_name AS proceeding_name,
+    ps.proceedings_id AS proceeding_id,
+    SUM(ts.transactions_saldo_total_effective) AS total_amount,
+    COUNT(ts.transactions_saldo_id) AS transaction_count
+FROM 
+    transactions.transactions_saldo ts
+    JOIN core.users u ON ts.transactions_saldo_user_id = u.users_id
+    JOIN core.proceedings_saldo ps ON ts.transactions_saldo_proceeding_id = ps.proceedings_id
+WHERE 
+    ts.transactions_saldo_status = 'Efetuado'
+    AND ts.transactions_saldo_implementation_datetime >= date_trunc('month', CURRENT_DATE + INTERVAL '1 month')
+    AND ts.transactions_saldo_implementation_datetime < date_trunc('month', CURRENT_DATE + INTERVAL '2 month')
+GROUP BY 
+    ts.transactions_saldo_user_id, ps.proceedings_id, ps.proceedings_name
+ORDER BY 
+    proceeding_name;
+
+COMMENT ON VIEW transactions.view_next_month_proceeding_totals IS 'Exibe a soma dos valores de transações de saldo do próximo mês, agrupadas por usuário e procedimento.';
+
+-- View para visualização de transações com saldo por procedimento realizadas no total.
+CREATE OR REPLACE VIEW transactions.view_all_time_proceeding_totals AS
+SELECT 
+    ts.transactions_saldo_user_id AS user_id,
+    ps.proceedings_name AS proceeding_name,
+    ps.proceedings_id AS proceeding_id,
+    SUM(ts.transactions_saldo_total_effective) AS total_amount,
+    COUNT(ts.transactions_saldo_id) AS transaction_count,
+    MIN(ts.transactions_saldo_implementation_datetime) AS first_transaction_date,
+    MAX(ts.transactions_saldo_implementation_datetime) AS last_transaction_date
+FROM 
+    transactions.transactions_saldo ts
+    JOIN core.users u ON ts.transactions_saldo_user_id = u.users_id
+    JOIN core.proceedings_saldo ps ON ts.transactions_saldo_proceeding_id = ps.proceedings_id
+WHERE 
+    ts.transactions_saldo_status = 'Efetuado'
+GROUP BY 
+    ts.transactions_saldo_user_id, ps.proceedings_id, ps.proceedings_name
+ORDER BY 
+    proceeding_name;
+
+COMMENT ON VIEW transactions.view_all_time_proceeding_totals IS 'Exibe a soma total dos valores de transações de saldo de todos os tempos, agrupadas por usuário e procedimento.';
+
+-- View para visualização de transações com saldo e cartão de crédito realizadas por categoria no mês atual.
+CREATE OR REPLACE VIEW transactions.view_current_month_category_totals AS
+WITH saldo_totals AS (
+    SELECT 
+        ts.transactions_saldo_user_id AS user_id,
+        c.categories_id AS category_id,
+        c.categories_name AS category_name,
+        SUM(ts.transactions_saldo_total_effective) AS saldo_amount,
+        COUNT(ts.transactions_saldo_id) AS saldo_count
+    FROM 
+        transactions.transactions_saldo ts
+        JOIN core.categories c ON ts.transactions_saldo_category_id = c.categories_id
+    WHERE 
+        ts.transactions_saldo_status = 'Efetuado'
+        AND ts.transactions_saldo_implementation_datetime >= date_trunc('month', CURRENT_DATE)
+        AND ts.transactions_saldo_implementation_datetime < date_trunc('month', CURRENT_DATE + INTERVAL '1 month')
+    GROUP BY 
+        ts.transactions_saldo_user_id, c.categories_id, c.categories_name
+),
+card_totals AS (
+    SELECT 
+        ct.creditcard_transactions_user_id AS user_id,
+        c.categories_id AS category_id,
+        c.categories_name AS category_name,
+        SUM(ct.creditcard_transactions_total_effective) AS card_amount,
+        COUNT(ct.creditcard_transactions_id) AS card_count
+    FROM 
+        transactions.creditcard_transactions ct
+        JOIN core.categories c ON ct.creditcard_transactions_category_id = c.categories_id
+    WHERE 
+        ct.creditcard_transactions_status = 'Efetuado'
+        AND ct.creditcard_transactions_implementation_datetime >= date_trunc('month', CURRENT_DATE)
+        AND ct.creditcard_transactions_implementation_datetime < date_trunc('month', CURRENT_DATE + INTERVAL '1 month')
+    GROUP BY 
+        ct.creditcard_transactions_user_id, c.categories_id, c.categories_name
+)
+SELECT 
+    COALESCE(s.user_id, c.user_id) AS user_id,
+    u.users_first_name || COALESCE(' ' || u.users_last_name, '') AS user_name,
+    COALESCE(s.category_id, c.category_id) AS category_id,
+    COALESCE(s.category_name, c.category_name) AS category_name,
+    COALESCE(s.saldo_amount, 0) AS saldo_amount,
+    COALESCE(s.saldo_count, 0) AS saldo_count,
+    COALESCE(c.card_amount, 0) AS card_amount,
+    COALESCE(c.card_count, 0) AS card_count,
+    COALESCE(s.saldo_amount, 0) + COALESCE(c.card_amount, 0) AS total_amount
+FROM 
+    saldo_totals s
+    FULL OUTER JOIN card_totals c ON s.user_id = c.user_id AND s.category_id = c.category_id
+    JOIN core.users u ON COALESCE(s.user_id, c.user_id) = u.users_id
+ORDER BY 
+    user_name, category_name;
+
+-- View para visualização de transações com saldo e cartão de crédito realizadas por categoria no próximo mês.
+CREATE OR REPLACE VIEW transactions.view_next_month_category_totals AS
+WITH saldo_totals AS (
+    SELECT 
+        ts.transactions_saldo_user_id AS user_id,
+        c.categories_id AS category_id,
+        c.categories_name AS category_name,
+        SUM(ts.transactions_saldo_total_effective) AS saldo_amount,
+        COUNT(ts.transactions_saldo_id) AS saldo_count
+    FROM 
+        transactions.transactions_saldo ts
+        JOIN core.categories c ON ts.transactions_saldo_category_id = c.categories_id
+    WHERE 
+        ts.transactions_saldo_status = 'Efetuado'
+        AND ts.transactions_saldo_implementation_datetime >= date_trunc('month', CURRENT_DATE + INTERVAL '1 month')
+        AND ts.transactions_saldo_implementation_datetime < date_trunc('month', CURRENT_DATE + INTERVAL '2 month')
+    GROUP BY 
+        ts.transactions_saldo_user_id, c.categories_id, c.categories_name
+),
+card_totals AS (
+    SELECT 
+        ct.creditcard_transactions_user_id AS user_id,
+        c.categories_id AS category_id,
+        c.categories_name AS category_name,
+        SUM(ct.creditcard_transactions_total_effective) AS card_amount,
+        COUNT(ct.creditcard_transactions_id) AS card_count
+    FROM 
+        transactions.creditcard_transactions ct
+        JOIN core.categories c ON ct.creditcard_transactions_category_id = c.categories_id
+    WHERE 
+        ct.creditcard_transactions_status = 'Efetuado'
+        AND ct.creditcard_transactions_implementation_datetime >= date_trunc('month', CURRENT_DATE + INTERVAL '1 month')
+        AND ct.creditcard_transactions_implementation_datetime < date_trunc('month', CURRENT_DATE + INTERVAL '2 month')
+    GROUP BY 
+        ct.creditcard_transactions_user_id, c.categories_id, c.categories_name
+)
+SELECT 
+    COALESCE(s.user_id, c.user_id) AS user_id,
+    u.users_first_name || COALESCE(' ' || u.users_last_name, '') AS user_name,
+    COALESCE(s.category_id, c.category_id) AS category_id,
+    COALESCE(s.category_name, c.category_name) AS category_name,
+    COALESCE(s.saldo_amount, 0) AS saldo_amount,
+    COALESCE(s.saldo_count, 0) AS saldo_count,
+    COALESCE(c.card_amount, 0) AS card_amount,
+    COALESCE(c.card_count, 0) AS card_count,
+    COALESCE(s.saldo_amount, 0) + COALESCE(c.card_amount, 0) AS total_amount
+FROM 
+    saldo_totals s
+    FULL OUTER JOIN card_totals c ON s.user_id = c.user_id AND s.category_id = c.category_id
+    JOIN core.users u ON COALESCE(s.user_id, c.user_id) = u.users_id
+ORDER BY 
+    user_name, category_name;
+
+-- -- View para visualização de transações com saldo e cartão de crédito realizadas por categoria.
+CREATE OR REPLACE VIEW transactions.view_all_time_category_totals AS
+WITH saldo_totals AS (
+    SELECT 
+        ts.transactions_saldo_user_id AS user_id,
+        c.categories_id AS category_id,
+        c.categories_name AS category_name,
+        SUM(ts.transactions_saldo_total_effective) AS saldo_amount,
+        COUNT(ts.transactions_saldo_id) AS saldo_count,
+        MIN(ts.transactions_saldo_implementation_datetime) AS first_saldo_date,
+        MAX(ts.transactions_saldo_implementation_datetime) AS last_saldo_date
+    FROM 
+        transactions.transactions_saldo ts
+        JOIN core.categories c ON ts.transactions_saldo_category_id = c.categories_id
+    WHERE 
+        ts.transactions_saldo_status = 'Efetuado'
+    GROUP BY 
+        ts.transactions_saldo_user_id, c.categories_id, c.categories_name
+),
+card_totals AS (
+    SELECT 
+        ct.creditcard_transactions_user_id AS user_id,
+        c.categories_id AS category_id,
+        c.categories_name AS category_name,
+        SUM(ct.creditcard_transactions_total_effective) AS card_amount,
+        COUNT(ct.creditcard_transactions_id) AS card_count,
+        MIN(ct.creditcard_transactions_implementation_datetime) AS first_card_date,
+        MAX(ct.creditcard_transactions_implementation_datetime) AS last_card_date
+    FROM 
+        transactions.creditcard_transactions ct
+        JOIN core.categories c ON ct.creditcard_transactions_category_id = c.categories_id
+    WHERE 
+        ct.creditcard_transactions_status = 'Efetuado'
+    GROUP BY 
+        ct.creditcard_transactions_user_id, c.categories_id, c.categories_name
+)
+SELECT 
+    COALESCE(s.user_id, c.user_id) AS user_id,
+    u.users_first_name || COALESCE(' ' || u.users_last_name, '') AS user_name,
+    COALESCE(s.category_id, c.category_id) AS category_id,
+    COALESCE(s.category_name, c.category_name) AS category_name,
+    COALESCE(s.saldo_amount, 0) AS saldo_amount,
+    COALESCE(s.saldo_count, 0) AS saldo_count,
+    COALESCE(c.card_amount, 0) AS card_amount,
+    COALESCE(c.card_count, 0) AS card_count,
+    COALESCE(s.saldo_amount, 0) + COALESCE(c.card_amount, 0) AS total_amount,
+    LEAST(
+        COALESCE(s.first_saldo_date, '9999-12-31'::timestamp with time zone),
+        COALESCE(c.first_card_date, '9999-12-31'::timestamp with time zone)
+    ) AS first_transaction_date,
+    GREATEST(
+        COALESCE(s.last_saldo_date, '1900-01-01'::timestamp with time zone),
+        COALESCE(c.last_card_date, '1900-01-01'::timestamp with time zone)
+    ) AS last_transaction_date
+FROM 
+    saldo_totals s
+    FULL OUTER JOIN card_totals c ON s.user_id = c.user_id AND s.category_id = c.category_id
+    JOIN core.users u ON COALESCE(s.user_id, c.user_id) = u.users_id
+ORDER BY 
+    user_name, category_name;
