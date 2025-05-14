@@ -280,58 +280,58 @@ COMMENT ON COLUMN core.user_accounts_pix_keys.user_accounts_pix_keys_user_accoun
 COMMENT ON COLUMN core.user_accounts_pix_keys.user_accounts_pix_keys_key IS 'A chave PIX em si (e-mail, telefone, CPF/CNPJ, chave aleatória).';
 COMMENT ON COLUMN core.user_accounts_pix_keys.user_accounts_pix_keys_last_update IS 'Timestamp da criação ou última atualização manual deste registro de chave PIX.';
 
--- Tabela: creditcards
-CREATE TABLE core.creditcards (
-    creditcards_id character varying(50) NOT NULL,
-    creditcards_name character varying(100) NOT NULL,
-    creditcards_network character varying(150) NOT NULL,
-    creditcards_logo text NULL,
-    creditcards_financial_institutions_id character varying(50) NOT NULL,
-    creditcards_postpone_due_date_to_business_day boolean NOT NULL DEFAULT true,
-    creditcards_last_update timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT creditcards_pkey PRIMARY KEY (creditcards_id),
-    CONSTRAINT fk_creditcards_financial_institution FOREIGN KEY (creditcards_financial_institutions_id) REFERENCES core.financial_institutions(financial_institutions_id) ON DELETE RESTRICT ON UPDATE NO ACTION
+-- Tabela: creditcard
+CREATE TABLE core.creditcard (
+    creditcard_id character varying(50) NOT NULL,
+    creditcard_name character varying(100) NOT NULL,
+    creditcard_network character varying(150) NOT NULL,
+    creditcard_logo text NULL,
+    creditcard_financial_institutions_id character varying(50) NOT NULL,
+    creditcard_postpone_due_date_to_business_day boolean NOT NULL DEFAULT true,
+    creditcard_last_update timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT creditcard_pkey PRIMARY KEY (creditcard_id),
+    CONSTRAINT fk_creditcard_financial_institution FOREIGN KEY (creditcard_financial_institutions_id) REFERENCES core.financial_institutions(financial_institutions_id) ON DELETE RESTRICT ON UPDATE NO ACTION
 );
-ALTER TABLE core.creditcards OWNER TO "SisFinance-adm";
-COMMENT ON TABLE core.creditcards IS 'Catálogo dos produtos de cartão de crédito oferecidos pelas instituições financeiras.';
-COMMENT ON COLUMN core.creditcards.creditcards_id IS 'Identificador único do produto cartão de crédito (PK, fornecido externamente).';
-COMMENT ON COLUMN core.creditcards.creditcards_name IS 'Nome comercial do cartão de crédito (Ex: Platinum, Gold).';
-COMMENT ON COLUMN core.creditcards.creditcards_network IS 'Bandeira do cartão (Ex: Visa, Mastercard, Elo).';
-COMMENT ON COLUMN core.creditcards.creditcards_logo IS 'URL para a imagem do logo do cartão (opcional).';
-COMMENT ON COLUMN core.creditcards.creditcards_financial_institutions_id IS 'Referência à instituição financeira emissora do cartão (FK para financial_institutions).';
-COMMENT ON COLUMN core.creditcards.creditcards_postpone_due_date_to_business_day IS 'Indica se o vencimento da fatura é adiado para o próximo dia útil caso caia em dia não útil. Padrão: TRUE.';
-COMMENT ON COLUMN core.creditcards.creditcards_last_update IS 'Timestamp da criação ou última atualização manual do registro do cartão.';
+ALTER TABLE core.creditcard OWNER TO "SisFinance-adm";
+COMMENT ON TABLE core.creditcard IS 'Catálogo dos produtos de cartão de crédito oferecidos pelas instituições financeiras.';
+COMMENT ON COLUMN core.creditcard.creditcard_id IS 'Identificador único do produto cartão de crédito (PK, fornecido externamente).';
+COMMENT ON COLUMN core.creditcard.creditcard_name IS 'Nome comercial do cartão de crédito (Ex: Platinum, Gold).';
+COMMENT ON COLUMN core.creditcard.creditcard_network IS 'Bandeira do cartão (Ex: Visa, Mastercard, Elo).';
+COMMENT ON COLUMN core.creditcard.creditcard_logo IS 'URL para a imagem do logo do cartão (opcional).';
+COMMENT ON COLUMN core.creditcard.creditcard_financial_institutions_id IS 'Referência à instituição financeira emissora do cartão (FK para financial_institutions).';
+COMMENT ON COLUMN core.creditcard.creditcard_postpone_due_date_to_business_day IS 'Indica se o vencimento da fatura é adiado para o próximo dia útil caso caia em dia não útil. Padrão: TRUE.';
+COMMENT ON COLUMN core.creditcard.creditcard_last_update IS 'Timestamp da criação ou última atualização manual do registro do cartão.';
 
--- Tabela: user_creditcards
-CREATE TABLE core.user_creditcards (
-    user_creditcards_id character varying(50) NOT NULL,
-    user_creditcards_user_id character varying(50) NOT NULL,
-    user_creditcards_creditcard_id character varying(50) NOT NULL,
-    user_creditcards_payment_user_account_id character varying(50) NOT NULL,
-    user_creditcards_payment_method transactions.payment_method NOT NULL,
-    user_creditcards_closing_day integer NOT NULL CHECK (user_creditcards_closing_day >= 1 AND user_creditcards_closing_day <= 31),
-    user_creditcards_due_day integer NOT NULL CHECK (user_creditcards_due_day >= 1 AND user_creditcards_due_day <= 31),
-    user_creditcards_limit numeric(15, 2) NOT NULL DEFAULT 0,
-    user_creditcards_status boolean NOT NULL DEFAULT true,
-    user_creditcards_last_update timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT user_creditcards_pkey PRIMARY KEY (user_creditcards_id),
-    CONSTRAINT fk_usercred_user FOREIGN KEY (user_creditcards_user_id) REFERENCES core.users(users_id) ON DELETE CASCADE ON UPDATE NO ACTION,
-    CONSTRAINT fk_usercred_card FOREIGN KEY (user_creditcards_creditcard_id) REFERENCES core.creditcards(creditcards_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
-    CONSTRAINT fk_usercred_payment_account FOREIGN KEY (user_creditcards_payment_user_account_id) REFERENCES core.user_accounts(user_accounts_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
-    CONSTRAINT uq_usercred_user_card UNIQUE (user_creditcards_user_id, user_creditcards_creditcard_id)
+-- Tabela: user_creditcard
+CREATE TABLE core.user_creditcard (
+    user_creditcard_id character varying(50) NOT NULL,
+    user_creditcard_user_id character varying(50) NOT NULL,
+    user_creditcard_creditcard_id character varying(50) NOT NULL,
+    user_creditcard_payment_user_account_id character varying(50) NOT NULL,
+    user_creditcard_payment_method transactions.payment_method NOT NULL,
+    user_creditcard_closing_day integer NOT NULL CHECK (user_creditcard_closing_day >= 1 AND user_creditcard_closing_day <= 31),
+    user_creditcard_due_day integer NOT NULL CHECK (user_creditcard_due_day >= 1 AND user_creditcard_due_day <= 31),
+    user_creditcard_limit numeric(15, 2) NOT NULL DEFAULT 0,
+    user_creditcard_status boolean NOT NULL DEFAULT true,
+    user_creditcard_last_update timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT user_creditcard_pkey PRIMARY KEY (user_creditcard_id),
+    CONSTRAINT fk_usercred_user FOREIGN KEY (user_creditcard_user_id) REFERENCES core.users(users_id) ON DELETE CASCADE ON UPDATE NO ACTION,
+    CONSTRAINT fk_usercred_card FOREIGN KEY (user_creditcard_creditcard_id) REFERENCES core.creditcard(creditcard_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
+    CONSTRAINT fk_usercred_payment_account FOREIGN KEY (user_creditcard_payment_user_account_id) REFERENCES core.user_accounts(user_accounts_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
+    CONSTRAINT uq_usercred_user_card UNIQUE (user_creditcard_user_id, user_creditcard_creditcard_id)
 );
-ALTER TABLE core.user_creditcards OWNER TO "SisFinance-adm";
-COMMENT ON TABLE core.user_creditcards IS 'Associação entre usuários e os cartões de crédito que possuem, definindo limites, forma de pagamento e status.';
-COMMENT ON COLUMN core.user_creditcards.user_creditcards_id IS 'Identificador único da associação usuário-cartão (PK, fornecido externamente).';
-COMMENT ON COLUMN core.user_creditcards.user_creditcards_user_id IS 'Referência ao usuário proprietário deste cartão (FK para users).';
-COMMENT ON COLUMN core.user_creditcards.user_creditcards_creditcard_id IS 'Referência ao produto cartão de crédito que o usuário possui (FK para creditcards).';
-COMMENT ON COLUMN core.user_creditcards.user_creditcards_payment_user_account_id IS 'Referência à conta do usuário (de user_accounts) usada para pagar a fatura deste cartão.';
-COMMENT ON COLUMN core.user_creditcards.user_creditcards_payment_method IS 'Forma de pagamento da fatura deste cartão (Débito Automático ou Boleto).';
-COMMENT ON COLUMN core.user_creditcards.user_creditcards_closing_day IS 'Dia do mês em que a fatura deste cartão fecha (1-31). Este é o NÚMERO DE DIAS ANTES DO VENCIMENTO.';
-COMMENT ON COLUMN core.user_creditcards.user_creditcards_due_day IS 'Dia do mês em que a fatura deste cartão vence (1-31).';
-COMMENT ON COLUMN core.user_creditcards.user_creditcards_limit IS 'Limite de crédito do usuário neste cartão. Padrão: 0.';
-COMMENT ON COLUMN core.user_creditcards.user_creditcards_status IS 'Status do cartão para este usuário (TRUE = Ativo, FALSE = Desativado/Cancelado). Padrão: TRUE.';
-COMMENT ON COLUMN core.user_creditcards.user_creditcards_last_update IS 'Timestamp da criação ou última atualização manual desta associação usuário-cartão.';
+ALTER TABLE core.user_creditcard OWNER TO "SisFinance-adm";
+COMMENT ON TABLE core.user_creditcard IS 'Associação entre usuários e os cartões de crédito que possuem, definindo limites, forma de pagamento e status.';
+COMMENT ON COLUMN core.user_creditcard.user_creditcard_id IS 'Identificador único da associação usuário-cartão (PK, fornecido externamente).';
+COMMENT ON COLUMN core.user_creditcard.user_creditcard_user_id IS 'Referência ao usuário proprietário deste cartão (FK para users).';
+COMMENT ON COLUMN core.user_creditcard.user_creditcard_creditcard_id IS 'Referência ao produto cartão de crédito que o usuário possui (FK para creditcard).';
+COMMENT ON COLUMN core.user_creditcard.user_creditcard_payment_user_account_id IS 'Referência à conta do usuário (de user_accounts) usada para pagar a fatura deste cartão.';
+COMMENT ON COLUMN core.user_creditcard.user_creditcard_payment_method IS 'Forma de pagamento da fatura deste cartão (Débito Automático ou Boleto).';
+COMMENT ON COLUMN core.user_creditcard.user_creditcard_closing_day IS 'Dia do mês em que a fatura deste cartão fecha (1-31). Este é o NÚMERO DE DIAS ANTES DO VENCIMENTO.';
+COMMENT ON COLUMN core.user_creditcard.user_creditcard_due_day IS 'Dia do mês em que a fatura deste cartão vence (1-31).';
+COMMENT ON COLUMN core.user_creditcard.user_creditcard_limit IS 'Limite de crédito do usuário neste cartão. Padrão: 0.';
+COMMENT ON COLUMN core.user_creditcard.user_creditcard_status IS 'Status do cartão para este usuário (TRUE = Ativo, FALSE = Desativado/Cancelado). Padrão: TRUE.';
+COMMENT ON COLUMN core.user_creditcard.user_creditcard_last_update IS 'Timestamp da criação ou última atualização manual desta associação usuário-cartão.';
 
 -- =============================================================================
 -- CRIAÇÃO DAS TABELAS DO SCHEMA "transactions"
@@ -522,14 +522,14 @@ CREATE TABLE transactions.creditcard_invoices (
     creditcard_invoices_file_url text,
     creditcard_invoices_last_update timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT creditcard_invoices_pkey PRIMARY KEY (creditcard_invoices_id),
-    CONSTRAINT fk_invoice_usercard FOREIGN KEY (creditcard_invoices_user_creditcard_id) REFERENCES core.user_creditcards(user_creditcards_id) ON DELETE CASCADE ON UPDATE NO ACTION,
+    CONSTRAINT fk_invoice_usercard FOREIGN KEY (creditcard_invoices_user_creditcard_id) REFERENCES core.user_creditcard(user_creditcard_id) ON DELETE CASCADE ON UPDATE NO ACTION,
     CONSTRAINT fk_invoice_user FOREIGN KEY (creditcard_invoices_user_id) REFERENCES core.users(users_id) ON DELETE CASCADE ON UPDATE NO ACTION,
     CONSTRAINT uq_invoice_card_period UNIQUE (creditcard_invoices_user_creditcard_id, creditcard_invoices_statement_period)
 );
 ALTER TABLE transactions.creditcard_invoices OWNER TO "SisFinance-adm";
 COMMENT ON TABLE transactions.creditcard_invoices IS 'Representa cada fatura mensal de um cartão de crédito específico do usuário.';
 COMMENT ON COLUMN transactions.creditcard_invoices.creditcard_invoices_id IS 'Identificador único da fatura (PK, fornecido externamente).';
-COMMENT ON COLUMN transactions.creditcard_invoices.creditcard_invoices_user_creditcard_id IS 'Referência à associação usuário-cartão à qual esta fatura pertence (FK para user_creditcards).';
+COMMENT ON COLUMN transactions.creditcard_invoices.creditcard_invoices_user_creditcard_id IS 'Referência à associação usuário-cartão à qual esta fatura pertence (FK para user_creditcard).';
 COMMENT ON COLUMN transactions.creditcard_invoices.creditcard_invoices_user_id IS 'Referência ao usuário proprietário da fatura (FK para users, denormalizado para conveniência).';
 COMMENT ON COLUMN transactions.creditcard_invoices.creditcard_invoices_creation_datetime IS 'Data e hora de criação do registro da fatura no sistema.';
 COMMENT ON COLUMN transactions.creditcard_invoices.creditcard_invoices_opening_date IS 'Data de início do período de compras desta fatura.';
@@ -571,7 +571,7 @@ CREATE TABLE transactions.recurrence_creditcard (
     creditcard_recurrence_last_update timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT creditcard_recurrence_pkey PRIMARY KEY (creditcard_recurrence_id),
     CONSTRAINT fk_ccrecur_user FOREIGN KEY (creditcard_recurrence_user_id) REFERENCES core.users(users_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
-    CONSTRAINT fk_ccrecur_usercard FOREIGN KEY (creditcard_recurrence_user_card_id) REFERENCES core.user_creditcards(user_creditcards_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
+    CONSTRAINT fk_ccrecur_usercard FOREIGN KEY (creditcard_recurrence_user_card_id) REFERENCES core.user_creditcard(user_creditcard_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
     CONSTRAINT fk_ccrecur_category FOREIGN KEY (creditcard_recurrence_category_id) REFERENCES core.categories(categories_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
     CONSTRAINT fk_ccrecur_operator FOREIGN KEY (creditcard_recurrence_operator_id) REFERENCES core.operators(operators_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
     CONSTRAINT chk_ccrecur_due_day_required CHECK (creditcard_recurrence_frequency = 'Semanal' OR creditcard_recurrence_due_day IS NOT NULL),
@@ -582,7 +582,7 @@ ALTER TABLE transactions.recurrence_creditcard OWNER TO "SisFinance-adm";
 COMMENT ON TABLE transactions.recurrence_creditcard IS 'Define transações recorrentes que ocorrem diretamente na fatura do cartão de crédito.';
 COMMENT ON COLUMN transactions.recurrence_creditcard.creditcard_recurrence_id IS 'Identificador único da recorrência de cartão (PK, fornecido externamente).';
 COMMENT ON COLUMN transactions.recurrence_creditcard.creditcard_recurrence_user_id IS 'Usuário proprietário desta recorrência de cartão (FK para users).';
-COMMENT ON COLUMN transactions.recurrence_creditcard.creditcard_recurrence_user_card_id IS 'Referência ao cartão específico do usuário afetado (FK para user_creditcards).';
+COMMENT ON COLUMN transactions.recurrence_creditcard.creditcard_recurrence_user_card_id IS 'Referência ao cartão específico do usuário afetado (FK para user_creditcard).';
 COMMENT ON COLUMN transactions.recurrence_creditcard.creditcard_recurrence_procedure IS 'Procedimento a ser aplicado na fatura (Crédito ou Débito em Fatura).';
 COMMENT ON COLUMN transactions.recurrence_creditcard.creditcard_recurrence_category_id IS 'Categoria da recorrência (FK para categories).';
 COMMENT ON COLUMN transactions.recurrence_creditcard.creditcard_recurrence_operator_id IS 'Operador associado a esta recorrência (FK para operators).';
@@ -637,7 +637,7 @@ CREATE TABLE transactions.creditcard_transactions (
     creditcard_transactions_last_update timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT creditcard_transactions_pkey PRIMARY KEY (creditcard_transactions_id),
     CONSTRAINT fk_cctrans_user FOREIGN KEY (creditcard_transactions_user_id) REFERENCES core.users(users_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
-    CONSTRAINT fk_cctrans_usercard FOREIGN KEY (creditcard_transactions_user_card_id) REFERENCES core.user_creditcards(user_creditcards_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
+    CONSTRAINT fk_cctrans_usercard FOREIGN KEY (creditcard_transactions_user_card_id) REFERENCES core.user_creditcard(user_creditcard_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
     CONSTRAINT fk_cctrans_invoice FOREIGN KEY (creditcard_transactions_invoice_id) REFERENCES transactions.creditcard_invoices(creditcard_invoices_id) ON DELETE SET NULL ON UPDATE NO ACTION,
     CONSTRAINT fk_cctrans_category FOREIGN KEY (creditcard_transactions_category_id) REFERENCES core.categories(categories_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
     CONSTRAINT fk_cctrans_operator FOREIGN KEY (creditcard_transactions_operator_id) REFERENCES core.operators(operators_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
@@ -649,7 +649,7 @@ ALTER TABLE transactions.creditcard_transactions OWNER TO "SisFinance-adm";
 COMMENT ON TABLE transactions.creditcard_transactions IS 'Registra cada movimentação individual (compra, estorno, taxa) realizada com o cartão de crédito.';
 COMMENT ON COLUMN transactions.creditcard_transactions.creditcard_transactions_id IS 'Identificador único da transação de cartão (PK, fornecido externamente).';
 COMMENT ON COLUMN transactions.creditcard_transactions.creditcard_transactions_user_id IS 'Usuário associado à transação (FK para users).';
-COMMENT ON COLUMN transactions.creditcard_transactions.creditcard_transactions_user_card_id IS 'Cartão do usuário utilizado nesta transação (FK para user_creditcards).';
+COMMENT ON COLUMN transactions.creditcard_transactions.creditcard_transactions_user_card_id IS 'Cartão do usuário utilizado nesta transação (FK para user_creditcard).';
 COMMENT ON COLUMN transactions.creditcard_transactions.creditcard_transactions_invoice_id IS 'Fatura à qual esta transação está associada, se aplicável (FK para creditcard_invoices).';
 COMMENT ON COLUMN transactions.creditcard_transactions.creditcard_transactions_procedure IS 'Procedimento aplicado na fatura (Crédito ou Débito em Fatura).';
 COMMENT ON COLUMN transactions.creditcard_transactions.creditcard_transactions_status IS 'Status da transação (Efetuado ou Pendente).';
@@ -794,12 +794,12 @@ ALTER TABLE core.user_accounts
 ALTER TABLE core.user_accounts_pix_keys 
     VALIDATE CONSTRAINT fk_uapix_user_account;
 
--- Creditcards tem FK para financial_institutions
-ALTER TABLE core.creditcards 
-    VALIDATE CONSTRAINT fk_creditcards_financial_institution;
+-- creditcard tem FK para financial_institutions
+ALTER TABLE core.creditcard 
+    VALIDATE CONSTRAINT fk_creditcard_financial_institution;
 
--- User_creditcards tem FKs para users, creditcards e user_accounts
-ALTER TABLE core.user_creditcards 
+-- User_creditcard tem FKs para users, creditcard e user_accounts
+ALTER TABLE core.user_creditcard 
     VALIDATE CONSTRAINT fk_usercred_user,
     VALIDATE CONSTRAINT fk_usercred_card,
     VALIDATE CONSTRAINT fk_usercred_payment_account;
@@ -828,19 +828,19 @@ ALTER TABLE transactions.internal_transfers
     VALIDATE CONSTRAINT fk_inttransf_destination,
     VALIDATE CONSTRAINT fk_inttransf_operator;
 
--- Creditcard_invoices tem FKs para user_creditcards e users
+-- creditcard_invoices tem FKs para user_creditcard e users
 ALTER TABLE transactions.creditcard_invoices 
     VALIDATE CONSTRAINT fk_invoice_usercard,
     VALIDATE CONSTRAINT fk_invoice_user;
 
--- Recurrence_creditcard tem FKs para users, user_creditcards, categories e operators
+-- Recurrence_creditcard tem FKs para users, user_creditcard, categories e operators
 ALTER TABLE transactions.recurrence_creditcard 
     VALIDATE CONSTRAINT fk_ccrecur_user,
     VALIDATE CONSTRAINT fk_ccrecur_usercard,
     VALIDATE CONSTRAINT fk_ccrecur_category,
     VALIDATE CONSTRAINT fk_ccrecur_operator;
 
--- Creditcard_transactions tem FKs para users, user_creditcards, creditcard_invoices, categories, operators e recurrence_creditcard
+-- creditcard_transactions tem FKs para users, user_creditcard, creditcard_invoices, categories, operators e recurrence_creditcard
 ALTER TABLE transactions.creditcard_transactions 
     VALIDATE CONSTRAINT fk_cctrans_user,
     VALIDATE CONSTRAINT fk_cctrans_usercard,
@@ -849,7 +849,7 @@ ALTER TABLE transactions.creditcard_transactions
     VALIDATE CONSTRAINT fk_cctrans_operator,
     VALIDATE CONSTRAINT fk_cctrans_recurrence;
 
--- Creditcard_installments tem FKs para creditcard_transactions e creditcard_invoices
+-- creditcard_installments tem FKs para creditcard_transactions e creditcard_invoices
 ALTER TABLE transactions.creditcard_installments 
     VALIDATE CONSTRAINT fk_ccinstall_transaction,
     VALIDATE CONSTRAINT fk_ccinstall_invoice;
@@ -886,14 +886,14 @@ COMMENT ON INDEX core.idx_user_accounts_type IS 'Acelera a filtragem de contas p
 CREATE INDEX IF NOT EXISTS idx_institution_accounts_institution ON core.institution_accounts (institution_accounts_institution_id);
 COMMENT ON INDEX core.idx_institution_accounts_institution IS 'Acelera a busca de produtos por instituição financeira.';
 
--- Índices para user_creditcards
-CREATE INDEX IF NOT EXISTS idx_user_creditcards_user_id ON core.user_creditcards (user_creditcards_user_id);
-COMMENT ON INDEX core.idx_user_creditcards_user_id IS 'Acelera a busca de cartões por usuário.';
+-- Índices para user_creditcard
+CREATE INDEX IF NOT EXISTS idx_user_creditcard_user_id ON core.user_creditcard (user_creditcard_user_id);
+COMMENT ON INDEX core.idx_user_creditcard_user_id IS 'Acelera a busca de cartões por usuário.';
 
-CREATE INDEX IF NOT EXISTS idx_user_cc_status ON core.user_creditcards (user_creditcards_status);
+CREATE INDEX IF NOT EXISTS idx_user_cc_status ON core.user_creditcard (user_creditcard_status);
 COMMENT ON INDEX core.idx_user_cc_status IS 'Acelera filtros por cartões de usuário ativos/inativos.';
 
-CREATE INDEX IF NOT EXISTS idx_user_cc_payment_account ON core.user_creditcards (user_creditcards_payment_user_account_id);
+CREATE INDEX IF NOT EXISTS idx_user_cc_payment_account ON core.user_creditcard (user_creditcard_payment_user_account_id);
 COMMENT ON INDEX core.idx_user_cc_payment_account IS 'Acelera busca por cartões de usuário ligados a uma conta de pagamento específica.';
 
 -- Índices para transactions_saldo
@@ -1075,17 +1075,17 @@ BEFORE UPDATE ON core.user_accounts_pix_keys
 FOR EACH ROW EXECUTE FUNCTION public.prevent_generic_pk_update('user_accounts_pix_keys_id');
 COMMENT ON TRIGGER trigger_prevent_uapix_pk_update ON core.user_accounts_pix_keys IS 'Trigger para impedir atualização da PK em user_accounts_pix_keys.';
 
--- Trigger para creditcards
+-- Trigger para creditcard
 CREATE TRIGGER trigger_prevent_cc_pk_update
-BEFORE UPDATE ON core.creditcards
-FOR EACH ROW EXECUTE FUNCTION public.prevent_generic_pk_update('creditcards_id');
-COMMENT ON TRIGGER trigger_prevent_cc_pk_update ON core.creditcards IS 'Trigger para impedir atualização da PK em creditcards.';
+BEFORE UPDATE ON core.creditcard
+FOR EACH ROW EXECUTE FUNCTION public.prevent_generic_pk_update('creditcard_id');
+COMMENT ON TRIGGER trigger_prevent_cc_pk_update ON core.creditcard IS 'Trigger para impedir atualização da PK em creditcard.';
 
--- Trigger para user_creditcards
+-- Trigger para user_creditcard
 CREATE TRIGGER trigger_prevent_user_cc_pk_update
-BEFORE UPDATE ON core.user_creditcards
-FOR EACH ROW EXECUTE FUNCTION public.prevent_generic_pk_update('user_creditcards_id');
-COMMENT ON TRIGGER trigger_prevent_user_cc_pk_update ON core.user_creditcards IS 'Trigger para impedir atualização da PK em user_creditcards.';
+BEFORE UPDATE ON core.user_creditcard
+FOR EACH ROW EXECUTE FUNCTION public.prevent_generic_pk_update('user_creditcard_id');
+COMMENT ON TRIGGER trigger_prevent_user_cc_pk_update ON core.user_creditcard IS 'Trigger para impedir atualização da PK em user_creditcard.';
 
 -- Trigger para recurrence_saldo
 CREATE TRIGGER trigger_prevent_recurr_saldo_pk_update
@@ -1527,45 +1527,6 @@ WHEN (OLD.creditcard_invoices_amount IS DISTINCT FROM NEW.creditcard_invoices_am
 EXECUTE FUNCTION public.update_invoice_status();
 COMMENT ON TRIGGER trigger_update_invoice_status ON transactions.creditcard_invoices IS 'Atualiza automaticamente o status da fatura quando valores ou data de vencimento são alterados.';
 
--- Função utilitária para formatar valores monetários
-CREATE OR REPLACE FUNCTION public.format_currency(
-    p_value NUMERIC,
-    p_currency_symbol VARCHAR DEFAULT 'R$'
-)
-RETURNS VARCHAR AS $$
-BEGIN
-    RETURN p_currency_symbol || ' ' || to_char(ABS(p_value), 'FM999G999G999D90') || CASE WHEN p_value < 0 THEN ' (negativo)' ELSE '' END;
-END;
-$$ LANGUAGE plpgsql IMMUTABLE;
-ALTER FUNCTION public.format_currency(NUMERIC, VARCHAR) OWNER TO "SisFinance-adm";
-COMMENT ON FUNCTION public.format_currency(NUMERIC, VARCHAR) IS 'Formata um valor numérico como moeda, adicionando símbolo monetário e formatação para exibição.';
-
--- Função utilitária para obter o mês nome em português a partir de um número
-CREATE OR REPLACE FUNCTION public.get_month_name_pt(
-    p_month_number INTEGER
-)
-RETURNS VARCHAR AS $$
-BEGIN
-    RETURN CASE p_month_number
-        WHEN 1 THEN 'Janeiro'
-        WHEN 2 THEN 'Fevereiro'
-        WHEN 3 THEN 'Março'
-        WHEN 4 THEN 'Abril'
-        WHEN 5 THEN 'Maio'
-        WHEN 6 THEN 'Junho'
-        WHEN 7 THEN 'Julho'
-        WHEN 8 THEN 'Agosto'
-        WHEN 9 THEN 'Setembro'
-        WHEN 10 THEN 'Outubro'
-        WHEN 11 THEN 'Novembro'
-        WHEN 12 THEN 'Dezembro'
-        ELSE 'Mês inválido'
-    END;
-END;
-$$ LANGUAGE plpgsql IMMUTABLE;
-ALTER FUNCTION public.get_month_name_pt(INTEGER) OWNER TO "SisFinance-adm";
-COMMENT ON FUNCTION public.get_month_name_pt(INTEGER) IS 'Converte um número de mês (1-12) para o nome do mês em português.';
-
 -- =============================================================================
 -- CRIAÇÃO DE VIEWS PARA FACILITAR CONSULTAS COMUNS
 -- =============================================================================
@@ -1588,15 +1549,6 @@ SELECT
          AND ts.transactions_saldo_status = 'Efetuado'),
         0.00
     ) AS current_balance,
-    public.format_currency(
-        COALESCE(
-            (SELECT SUM(transactions_saldo_total_effective) 
-             FROM transactions.transactions_saldo ts
-             WHERE ts.transactions_saldo_user_accounts_id = ua.user_accounts_id
-             AND ts.transactions_saldo_status = 'Efetuado'),
-            0.00
-        )
-    ) AS formatted_balance
 FROM 
     core.user_accounts ua
     JOIN core.users u ON ua.user_accounts_user_id = u.users_id
@@ -1610,122 +1562,42 @@ ORDER BY
 ALTER VIEW core.view_user_account_balances OWNER TO "SisFinance-adm";
 COMMENT ON VIEW core.view_user_account_balances IS 'Exibe os saldos atuais de todas as contas de usuários ativos, facilitando a visualização rápida da situação financeira de cada conta.';
 
--- View para visualização de faturas de cartão pendentes
-CREATE OR REPLACE VIEW transactions.view_pending_invoices AS
-SELECT 
-    ci.creditcard_invoices_id,
-    ci.creditcard_invoices_user_id,
-    u.users_first_name || COALESCE(' ' || u.users_last_name, '') AS user_full_name,
-    fi.financial_institutions_name AS bank_name,
-    cc.creditcards_name AS card_name,
-    cc.creditcards_network AS card_network,
-    ci.creditcard_invoices_statement_period,
-    EXTRACT(YEAR FROM ci.creditcard_invoices_due_date) AS due_year,
-    EXTRACT(MONTH FROM ci.creditcard_invoices_due_date) AS due_month,
-    public.get_month_name_pt(EXTRACT(MONTH FROM ci.creditcard_invoices_due_date)::integer) AS due_month_name,
-    ci.creditcard_invoices_due_date,
-    ci.creditcard_invoices_amount,
-    ci.creditcard_invoices_paid_amount,
-    ci.creditcard_invoices_amount - ci.creditcard_invoices_paid_amount AS remaining_amount,
-    ci.creditcard_invoices_status,
-    public.format_currency(ci.creditcard_invoices_amount) AS formatted_amount,
-    public.format_currency(ci.creditcard_invoices_amount - ci.creditcard_invoices_paid_amount) AS formatted_remaining
-FROM 
-    transactions.creditcard_invoices ci
-    JOIN core.users u ON ci.creditcard_invoices_user_id = u.users_id
-    JOIN core.user_creditcards ucc ON ci.creditcard_invoices_user_creditcard_id = ucc.user_creditcards_id
-    JOIN core.creditcards cc ON ucc.user_creditcards_creditcard_id = cc.creditcards_id
-    JOIN core.financial_institutions fi ON cc.creditcards_financial_institutions_id = fi.financial_institutions_id
+-- View para visualização de transações com saldo do mês atual
+CREATE OR REPLACE VIEW transactions.view_current_month_transactions AS
+SELECT *
+FROM transactions.transactions_saldo
 WHERE 
-    ci.creditcard_invoices_status IN ('Aberta', 'Fechada', 'Vencida', 'Paga Parcialmente')
-ORDER BY 
-    ci.creditcard_invoices_due_date;
+    EXTRACT(MONTH FROM transactions_saldo_implementation_datetime) = EXTRACT(MONTH FROM CURRENT_DATE)
+    AND EXTRACT(YEAR FROM transactions_saldo_implementation_datetime) = EXTRACT(YEAR FROM CURRENT_DATE);
 
-ALTER VIEW transactions.view_pending_invoices OWNER TO "SisFinance-adm";
-COMMENT ON VIEW transactions.view_pending_invoices IS 'Exibe todas as faturas de cartão de crédito pendentes ou parcialmente pagas, para facilitar o acompanhamento de pagamentos.';
+ALTER VIEW transactions.view_current_month_transactions OWNER TO "SisFinance-adm";
+COMMENT ON VIEW transactions.view_current_month_transactions IS 'Exibe todas as transações de saldo realizadas no mês atual, filtrando apenas por data de implementação.';
 
--- Registrar a criação da view
-DO $$
-BEGIN
-    RAISE NOTICE 'Criação das views concluída com sucesso em %', NOW();
-    RAISE NOTICE 'Executado por: %', 'murs77r';
-    RAISE NOTICE 'Data/Hora de execução (UTC): 2025-05-12 01:35:28';
-END $$;
+-- View para visualização de transações com saldo realizadas a partir do 1º dia do mês atual.
+CREATE OR REPLACE VIEW transactions.view_current_month_transactions AS
+SELECT *
+FROM transactions.transactions_saldo
+WHERE transactions_saldo_implementation_datetime >= date_trunc('month', CURRENT_DATE);
 
--- =============================================================================
--- CRIAÇÃO DE VIEWS PARA FACILITAR CONSULTAS COMUNS
--- =============================================================================
+ALTER VIEW transactions.view_current_month_transactions OWNER TO "SisFinance-adm";
+COMMENT ON VIEW transactions.view_current_month_transactions IS 'Exibe todas as transações de saldo realizadas a partir do início do mês atual.';
 
--- View para visualização de saldos de contas dos usuários
-CREATE OR REPLACE VIEW core.view_user_account_balances AS
-SELECT 
-    ua.user_accounts_id,
-    u.users_id,
-    u.users_first_name || COALESCE(' ' || u.users_last_name, '') AS user_full_name,
-    fi.financial_institutions_name AS bank_name,
-    fi.financial_institutions_id AS bank_id,
-    ua.user_accounts_financial_institution_type AS account_type,
-    ua.user_accounts_agency AS agency,
-    ua.user_accounts_number AS account_number,
-    COALESCE(
-        (SELECT SUM(transactions_saldo_total_effective) 
-         FROM transactions.transactions_saldo ts
-         WHERE ts.transactions_saldo_user_accounts_id = ua.user_accounts_id
-         AND ts.transactions_saldo_status = 'Efetuado'),
-        0.00
-    ) AS current_balance,
-    public.format_currency(
-        COALESCE(
-            (SELECT SUM(transactions_saldo_total_effective) 
-             FROM transactions.transactions_saldo ts
-             WHERE ts.transactions_saldo_user_accounts_id = ua.user_accounts_id
-             AND ts.transactions_saldo_status = 'Efetuado'),
-            0.00
-        )
-    ) AS formatted_balance
-FROM 
-    core.user_accounts ua
-    JOIN core.users u ON ua.user_accounts_user_id = u.users_id
-    JOIN core.institution_accounts ia ON ua.user_accounts_institution_account_id = ia.institution_accounts_id
-    JOIN core.financial_institutions fi ON ia.institution_accounts_institution_id = fi.financial_institutions_id
+-- View para visualização de transações com cartão de crédito do mês atual
+CREATE OR REPLACE VIEW transactions.view_current_month_creditcard_transactions AS
+SELECT *
+FROM transactions.creditcard_transactions
 WHERE 
-    u.users_status = 'Ativo'
-ORDER BY 
-    u.users_first_name, fi.financial_institutions_name;
+    EXTRACT(MONTH FROM creditcard_transactions_implementation_datetime) = EXTRACT(MONTH FROM CURRENT_DATE)
+    AND EXTRACT(YEAR FROM creditcard_transactions_implementation_datetime) = EXTRACT(YEAR FROM CURRENT_DATE);
 
-ALTER VIEW core.view_user_account_balances OWNER TO "SisFinance-adm";
-COMMENT ON VIEW core.view_user_account_balances IS 'Exibe os saldos atuais de todas as contas de usuários ativos, facilitando a visualização rápida da situação financeira de cada conta.';
+ALTER VIEW transactions.view_current_month_creditcard_transactions OWNER TO "SisFinance-adm";
+COMMENT ON VIEW transactions.view_current_month_creditcard_transactions IS 'Exibe todas as transações de cartão de crédito realizadas no mês atual, filtrando apenas por data de implementação.';
 
--- View para visualização de faturas de cartão pendentes
-CREATE OR REPLACE VIEW transactions.view_pending_invoices AS
-SELECT 
-    ci.creditcard_invoices_id,
-    ci.creditcard_invoices_user_id,
-    u.users_first_name || COALESCE(' ' || u.users_last_name, '') AS user_full_name,
-    fi.financial_institutions_name AS bank_name,
-    cc.creditcards_name AS card_name,
-    cc.creditcards_network AS card_network,
-    ci.creditcard_invoices_statement_period,
-    EXTRACT(YEAR FROM ci.creditcard_invoices_due_date) AS due_year,
-    EXTRACT(MONTH FROM ci.creditcard_invoices_due_date) AS due_month,
-    public.get_month_name_pt(EXTRACT(MONTH FROM ci.creditcard_invoices_due_date)::integer) AS due_month_name,
-    ci.creditcard_invoices_due_date,
-    ci.creditcard_invoices_amount,
-    ci.creditcard_invoices_paid_amount,
-    ci.creditcard_invoices_amount - ci.creditcard_invoices_paid_amount AS remaining_amount,
-    ci.creditcard_invoices_status,
-    public.format_currency(ci.creditcard_invoices_amount) AS formatted_amount,
-    public.format_currency(ci.creditcard_invoices_amount - ci.creditcard_invoices_paid_amount) AS formatted_remaining
-FROM 
-    transactions.creditcard_invoices ci
-    JOIN core.users u ON ci.creditcard_invoices_user_id = u.users_id
-    JOIN core.user_creditcards ucc ON ci.creditcard_invoices_user_creditcard_id = ucc.user_creditcards_id
-    JOIN core.creditcards cc ON ucc.user_creditcards_creditcard_id = cc.creditcards_id
-    JOIN core.financial_institutions fi ON cc.creditcards_financial_institutions_id = fi.financial_institutions_id
-WHERE 
-    ci.creditcard_invoices_status IN ('Aberta', 'Fechada', 'Vencida', 'Paga Parcialmente')
-ORDER BY 
-    ci.creditcard_invoices_due_date;
+-- View para visualização de transações com cartão de crédito realizadas a partir do 1º dia do mês atual.
+CREATE OR REPLACE VIEW transactions.view_current_month_creditcard_transactions AS
+SELECT *
+FROM transactions.creditcard_transactions
+WHERE creditcard_transactions_implementation_datetime >= date_trunc('month', CURRENT_DATE);
 
-ALTER VIEW transactions.view_pending_invoices OWNER TO "SisFinance-adm";
-COMMENT ON VIEW transactions.view_pending_invoices IS 'Exibe todas as faturas de cartão de crédito pendentes ou parcialmente pagas, para facilitar o acompanhamento de pagamentos.';
+COMMENT ON VIEW transactions.view_current_month_creditcard_transactions IS 'Exibe todas as transações de cartão de crédito realizadas a partir do início do mês atual.';
+ALTER VIEW transactions.view_current_month_creditcard_transactions OWNER TO "SisFinance-adm";
