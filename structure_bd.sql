@@ -689,6 +689,7 @@ CREATE TABLE transactions.creditcard_installments (
     creditcard_installments_fees_taxes numeric(15, 2) NOT NULL DEFAULT 0,
     creditcard_installments_subtotal numeric(15, 2) GENERATED ALWAYS AS (creditcard_installments_base_value + creditcard_installments_fees_taxes) STORED,
     creditcard_installments_total_effective numeric(15, 2) GENERATED ALWAYS AS ((creditcard_installments_base_value + creditcard_installments_fees_taxes) * -1) STORED,
+    creditcard_installments_update_alert boolean NOT NULL DEFAULT false,
     creditcard_installments_last_update timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT creditcard_installments_pkey PRIMARY KEY (creditcard_installments_id),
     CONSTRAINT fk_ccinstall_transaction FOREIGN KEY (creditcard_installments_transaction_id) REFERENCES transactions.creditcard_transactions(creditcard_transactions_id) ON DELETE CASCADE ON UPDATE NO ACTION,
@@ -708,6 +709,7 @@ COMMENT ON COLUMN transactions.creditcard_installments.creditcard_installments_b
 COMMENT ON COLUMN transactions.creditcard_installments.creditcard_installments_fees_taxes IS 'Taxas adicionais específicas desta parcela. Padrão: 0.';
 COMMENT ON COLUMN transactions.creditcard_installments.creditcard_installments_subtotal IS 'Valor calculado: base_value + fees_taxes. Coluna Gerada.';
 COMMENT ON COLUMN transactions.creditcard_installments.creditcard_installments_total_effective IS 'Valor efetivo com sinal (sempre negativo pois é débito). Coluna Gerada.';
+COMMENT ON COLUMN transactions.creditcard_installments.creditcard_installments_update_alert IS 'Registro de atualização caso seja necessário.';
 COMMENT ON COLUMN transactions.creditcard_installments.creditcard_installments_last_update IS 'Timestamp da última atualização manual deste registro de parcela.';
 
 -- =============================================================================
