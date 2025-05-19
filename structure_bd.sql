@@ -1451,8 +1451,7 @@ COMMENT ON FUNCTION public.log_transactions_audit() IS 'Função para registrar 
 
 -- Função para calcular saldo de conta
 CREATE OR REPLACE FUNCTION public.calculate_account_balance(
-    p_user_account_id VARCHAR(50),
-    p_end_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    p_user_account_id VARCHAR(50)
 )
 RETURNS NUMERIC(15,2) AS $$
 DECLARE
@@ -1462,14 +1461,13 @@ BEGIN
     INTO v_balance
     FROM transactions.transactions_saldo
     WHERE transactions_saldo_user_accounts_id = p_user_account_id
-      AND transactions_saldo_status = 'Efetuado'
-      AND transactions_saldo_implementation_datetime <= p_end_date;
-      
+      AND transactions_saldo_status = 'Efetuado';
+
     RETURN v_balance;
 END;
 $$ LANGUAGE plpgsql;
-ALTER FUNCTION public.calculate_account_balance(VARCHAR, TIMESTAMP WITH TIME ZONE) OWNER TO "SisFinance-adm";
-COMMENT ON FUNCTION public.calculate_account_balance(VARCHAR, TIMESTAMP WITH TIME ZONE) IS 'Calcula o saldo de uma conta específica até uma data/hora determinada (padrão: hora atual).';
+ALTER FUNCTION public.calculate_account_balance(VARCHAR) OWNER TO "SisFinance-adm";
+COMMENT ON FUNCTION public.calculate_account_balance(VARCHAR) IS 'Calcula o saldo de uma conta específica, considerando todas as transações efetuadas';
 
 -- Função para calcular valor total de uma fatura
 CREATE OR REPLACE FUNCTION public.calculate_invoice_amount(
@@ -1534,77 +1532,79 @@ COMMENT ON TRIGGER trigger_update_invoice_status ON transactions.creditcard_invo
 -- =============================================================================
 
 -- View para visualização de saldos de contas dos usuários
-CREATE OR REPLACE VIEW core.view_user_account_balances AS
+CREATE OR REPLACE VIEW transactions.view_user_account_balances AS
 SELECT 
     ua.user_accounts_id,
     u.users_id,
-    u.users_first_name || COALESCE(' ' || u.users_last_name, '') AS user_full_name,
     fi.financial_institutions_name AS bank_name,
     fi.financial_institutions_id AS bank_id,
     ua.user_accounts_financial_institution_type AS account_type,
     ua.user_accounts_agency AS agency,
     ua.user_accounts_number AS account_number,
-    COALESCE(
-        (SELECT SUM(transactions_saldo_total_effective) 
-         FROM transactions.transactions_saldo ts
-         WHERE ts.transactions_saldo_user_accounts_id = ua.user_accounts_id
-         AND ts.transactions_saldo_status = 'Efetuado'),
-        0.00
-    ) AS current_balance,
+    COALESCE(b.balance, 0.00) AS current_balance
 FROM 
     core.user_accounts ua
     JOIN core.users u ON ua.user_accounts_user_id = u.users_id
     JOIN core.institution_accounts ia ON ua.user_accounts_institution_account_id = ia.institution_accounts_id
     JOIN core.financial_institutions fi ON ia.institution_accounts_institution_id = fi.financial_institutions_id
+    LEFT JOIN (
+        SELECT 
+            transactions_saldo_user_accounts_id,
+            SUM(transactions_saldo_total_effective) AS balance
+        FROM 
+            transactions.transactions_saldo 
+        WHERE 
+            transactions_saldo_status = 'Efetuado'
+        GROUP BY 
+            transactions_saldo_user_accounts_id
+    ) b ON ua.user_accounts_id = b.transactions_saldo_user_accounts_id
 WHERE 
-    u.users_status = 'Ativo'
-ORDER BY 
-    u.users_first_name, fi.financial_institutions_name;
+    u.users_status = 'Ativo';
 
-ALTER VIEW core.view_user_account_balances OWNER TO "SisFinance-adm";
-COMMENT ON VIEW core.view_user_account_balances IS 'Exibe os saldos atuais de todas as contas de usuários ativos, facilitando a visualização rápida da situação financeira de cada conta.';
+ALTER VIEW transactions.view_user_account_balances OWNER TO "SisFinance-adm";
+COMMENT ON VIEW transactions.view_user_account_balances IS 'Exibe os saldos atuais de todas as contas de usuários ativos, facilitando a visualização rápida da situação financeira de cada conta.';
 
 -- View para visualização de transações com saldo do mês atual
 CREATE OR REPLACE VIEW transactions.view_current_month_transactions AS
 SELECT *
 FROM transactions.transactions_saldo
 WHERE 
-    EXTRACT(MONTH FROM transactions_saldo_implementation_datetime) = EXTRACT(MONTH FROM CURRENT_DATE)
-    AND EXTRACT(YEAR FROM transactions_saldo_implementation_datetime) = EXTRACT(YEAR FROM CURRENT_DATE);
+    transactions_saldo_implementation_datetime >= date_trunc('month', CURRENT_DATE)
+    AND transactions_saldo_implementation_datetime < date_trunc('month', CURRENT_DATE + INTERVAL '1 month');
 
 ALTER VIEW transactions.view_current_month_transactions OWNER TO "SisFinance-adm";
 COMMENT ON VIEW transactions.view_current_month_transactions IS 'Exibe todas as transações de saldo realizadas no mês atual, filtrando apenas por data de implementação.';
 
 -- View para visualização de transações com saldo realizadas a partir do 1º dia do mês atual.
-CREATE OR REPLACE VIEW transactions.view_current_month_transactions AS
+CREATE OR REPLACE VIEW transactions.view_month_transactions AS
 SELECT *
 FROM transactions.transactions_saldo
 WHERE transactions_saldo_implementation_datetime >= date_trunc('month', CURRENT_DATE);
 
-ALTER VIEW transactions.view_current_month_transactions OWNER TO "SisFinance-adm";
-COMMENT ON VIEW transactions.view_current_month_transactions IS 'Exibe todas as transações de saldo realizadas a partir do início do mês atual.';
+ALTER VIEW transactions.view_month_transactions OWNER TO "SisFinance-adm";
+COMMENT ON VIEW transactions.view_month_transactions IS 'Exibe todas as transações de saldo realizadas a partir do início do mês atual.';
 
 -- View para visualização de transações com cartão de crédito do mês atual
 CREATE OR REPLACE VIEW transactions.view_current_month_creditcard_transactions AS
 SELECT *
 FROM transactions.creditcard_transactions
 WHERE 
-    EXTRACT(MONTH FROM creditcard_transactions_implementation_datetime) = EXTRACT(MONTH FROM CURRENT_DATE)
-    AND EXTRACT(YEAR FROM creditcard_transactions_implementation_datetime) = EXTRACT(YEAR FROM CURRENT_DATE);
+    creditcard_transactions_implementation_datetime >= date_trunc('month', CURRENT_DATE)
+    AND creditcard_transactions_implementation_datetime < date_trunc('month', CURRENT_DATE + INTERVAL '1 month');
 
 ALTER VIEW transactions.view_current_month_creditcard_transactions OWNER TO "SisFinance-adm";
 COMMENT ON VIEW transactions.view_current_month_creditcard_transactions IS 'Exibe todas as transações de cartão de crédito realizadas no mês atual, filtrando apenas por data de implementação.';
 
 -- View para visualização de transações com cartão de crédito realizadas a partir do 1º dia do mês atual.
-CREATE OR REPLACE VIEW transactions.view_current_month_creditcard_transactions AS
+CREATE OR REPLACE VIEW transactions.view_month_creditcard_transactions AS
 SELECT *
 FROM transactions.creditcard_transactions
 WHERE creditcard_transactions_implementation_datetime >= date_trunc('month', CURRENT_DATE);
 
-COMMENT ON VIEW transactions.view_current_month_creditcard_transactions IS 'Exibe todas as transações de cartão de crédito realizadas a partir do início do mês atual.';
-ALTER VIEW transactions.view_current_month_creditcard_transactions OWNER TO "SisFinance-adm";
+COMMENT ON VIEW transactions.view_month_creditcard_transactions IS 'Exibe todas as transações de cartão de crédito realizadas a partir do início do mês atual.';
+ALTER VIEW transactions.view_month_creditcard_transactions OWNER TO "SisFinance-adm";
 
--- View para visualização de transações com saldo realizadas no mês atual.
+-- View para visualização de transações com saldo realizadas por procedimento no mês atual.
 CREATE OR REPLACE VIEW transactions.view_current_month_proceeding_totals AS
 SELECT 
     ts.transactions_saldo_user_id AS user_id,
@@ -1614,17 +1614,15 @@ SELECT
     COUNT(ts.transactions_saldo_id) AS transaction_count
 FROM 
     transactions.transactions_saldo ts
-    JOIN core.users u ON ts.transactions_saldo_user_id = u.users_id
     JOIN core.proceedings_saldo ps ON ts.transactions_saldo_proceeding_id = ps.proceedings_id
 WHERE 
     ts.transactions_saldo_status = 'Efetuado'
     AND ts.transactions_saldo_implementation_datetime >= date_trunc('month', CURRENT_DATE)
     AND ts.transactions_saldo_implementation_datetime < date_trunc('month', CURRENT_DATE + INTERVAL '1 month')
 GROUP BY 
-    ts.transactions_saldo_user_id, ps.proceedings_id, ps.proceedings_name
-ORDER BY 
-    proceeding_name;
+    ts.transactions_saldo_user_id, ps.proceedings_id, ps.proceedings_name;
 
+ALTER VIEW transactions.view_current_month_proceeding_totals OWNER TO "SisFinance-adm";
 COMMENT ON VIEW transactions.view_current_month_proceeding_totals IS 'Exibe a soma dos valores de transações de saldo do mês atual, agrupadas por usuário e procedimento.';
 
 -- View para visualização de transações com saldo realizadas por procedimento no próximo mês.
@@ -1644,10 +1642,9 @@ WHERE
     AND ts.transactions_saldo_implementation_datetime >= date_trunc('month', CURRENT_DATE + INTERVAL '1 month')
     AND ts.transactions_saldo_implementation_datetime < date_trunc('month', CURRENT_DATE + INTERVAL '2 month')
 GROUP BY 
-    ts.transactions_saldo_user_id, ps.proceedings_id, ps.proceedings_name
-ORDER BY 
-    proceeding_name;
+    ts.transactions_saldo_user_id, ps.proceedings_id, ps.proceedings_name;
 
+ALTER VIEW transactions.view_next_month_proceeding_totals OWNER TO "SisFinance-adm";
 COMMENT ON VIEW transactions.view_next_month_proceeding_totals IS 'Exibe a soma dos valores de transações de saldo do próximo mês, agrupadas por usuário e procedimento.';
 
 -- View para visualização de transações com saldo por procedimento realizadas no total.
@@ -1667,10 +1664,9 @@ FROM
 WHERE 
     ts.transactions_saldo_status = 'Efetuado'
 GROUP BY 
-    ts.transactions_saldo_user_id, ps.proceedings_id, ps.proceedings_name
-ORDER BY 
-    proceeding_name;
+    ts.transactions_saldo_user_id, ps.proceedings_id, ps.proceedings_name;
 
+ALTER VIEW transactions.view_all_time_proceeding_totals OWNER TO "SisFinance-adm";
 COMMENT ON VIEW transactions.view_all_time_proceeding_totals IS 'Exibe a soma total dos valores de transações de saldo de todos os tempos, agrupadas por usuário e procedimento.';
 
 -- View para visualização de transações com saldo e cartão de crédito realizadas por categoria no mês atual.
@@ -1697,8 +1693,11 @@ card_totals AS (
         ct.creditcard_transactions_user_id AS user_id,
         c.categories_id AS category_id,
         c.categories_name AS category_name,
-        SUM(ct.creditcard_transactions_total_effective) AS card_amount,
-        COUNT(ct.creditcard_transactions_id) AS card_count
+        SUM(CASE 
+            WHEN ct.creditcard_transactions_is_installment = FALSE THEN ct.creditcard_transactions_total_effective
+            ELSE 0
+        END) AS card_amount,
+        COUNT(CASE WHEN ct.creditcard_transactions_is_installment = FALSE THEN 1 ELSE NULL END) AS card_count
     FROM 
         transactions.creditcard_transactions ct
         JOIN core.categories c ON ct.creditcard_transactions_category_id = c.categories_id
@@ -1708,10 +1707,42 @@ card_totals AS (
         AND ct.creditcard_transactions_implementation_datetime < date_trunc('month', CURRENT_DATE + INTERVAL '1 month')
     GROUP BY 
         ct.creditcard_transactions_user_id, c.categories_id, c.categories_name
+    
+    UNION ALL
+    
+    SELECT 
+        ct.creditcard_transactions_user_id AS user_id,
+        c.categories_id AS category_id,
+        c.categories_name AS category_name,
+        SUM(ci.creditcard_installments_total_effective) AS card_amount,
+        COUNT(ci.creditcard_installments_id) AS card_count
+    FROM 
+        transactions.creditcard_installments ci
+        JOIN transactions.creditcard_transactions ct ON ci.creditcard_installments_transaction_id = ct.creditcard_transactions_id
+        JOIN core.categories c ON ct.creditcard_transactions_category_id = c.categories_id
+    WHERE 
+        ct.creditcard_transactions_status = 'Efetuado'
+        AND ct.creditcard_transactions_is_installment = TRUE
+        AND ci.creditcard_installments_number = 1
+        AND ct.creditcard_transactions_implementation_datetime >= date_trunc('month', CURRENT_DATE)
+        AND ct.creditcard_transactions_implementation_datetime < date_trunc('month', CURRENT_DATE + INTERVAL '1 month')
+    GROUP BY 
+        ct.creditcard_transactions_user_id, c.categories_id, c.categories_name
+),
+combined_card_totals AS (
+    SELECT
+        user_id,
+        category_id,
+        category_name,
+        SUM(card_amount) AS card_amount,
+        SUM(card_count) AS card_count
+    FROM
+        card_totals
+    GROUP BY
+        user_id, category_id, category_name
 )
 SELECT 
     COALESCE(s.user_id, c.user_id) AS user_id,
-    u.users_first_name || COALESCE(' ' || u.users_last_name, '') AS user_name,
     COALESCE(s.category_id, c.category_id) AS category_id,
     COALESCE(s.category_name, c.category_name) AS category_name,
     COALESCE(s.saldo_amount, 0) AS saldo_amount,
@@ -1721,12 +1752,12 @@ SELECT
     COALESCE(s.saldo_amount, 0) + COALESCE(c.card_amount, 0) AS total_amount
 FROM 
     saldo_totals s
-    FULL OUTER JOIN card_totals c ON s.user_id = c.user_id AND s.category_id = c.category_id
-    JOIN core.users u ON COALESCE(s.user_id, c.user_id) = u.users_id
-ORDER BY 
-    user_name, category_name;
+    FULL OUTER JOIN combined_card_totals c ON s.user_id = c.user_id AND s.category_id = c.category_id;
 
--- View para visualização de transações com saldo e cartão de crédito realizadas por categoria no próximo mês.
+ALTER VIEW transactions.view_current_month_category_totals OWNER TO "SisFinance-adm";
+COMMENT ON VIEW transactions.view_current_month_category_totals IS 'Exibe a soma dos valores de transações de saldo e cartão de crédito do mês atual, agrupadas por categoria e usuário.';
+
+-- View: Totais por categoria no próximo mês (sem nome do usuário)
 CREATE OR REPLACE VIEW transactions.view_next_month_category_totals AS
 WITH saldo_totals AS (
     SELECT 
@@ -1750,8 +1781,11 @@ card_totals AS (
         ct.creditcard_transactions_user_id AS user_id,
         c.categories_id AS category_id,
         c.categories_name AS category_name,
-        SUM(ct.creditcard_transactions_total_effective) AS card_amount,
-        COUNT(ct.creditcard_transactions_id) AS card_count
+        SUM(CASE 
+            WHEN ct.creditcard_transactions_is_installment = FALSE THEN ct.creditcard_transactions_total_effective
+            ELSE 0
+        END) AS card_amount,
+        COUNT(CASE WHEN ct.creditcard_transactions_is_installment = FALSE THEN 1 ELSE NULL END) AS card_count
     FROM 
         transactions.creditcard_transactions ct
         JOIN core.categories c ON ct.creditcard_transactions_category_id = c.categories_id
@@ -1761,10 +1795,42 @@ card_totals AS (
         AND ct.creditcard_transactions_implementation_datetime < date_trunc('month', CURRENT_DATE + INTERVAL '2 month')
     GROUP BY 
         ct.creditcard_transactions_user_id, c.categories_id, c.categories_name
+    
+    UNION ALL
+    
+    SELECT 
+        ct.creditcard_transactions_user_id AS user_id,
+        c.categories_id AS category_id,
+        c.categories_name AS category_name,
+        SUM(ci.creditcard_installments_total_effective) AS card_amount,
+        COUNT(ci.creditcard_installments_id) AS card_count
+    FROM 
+        transactions.creditcard_installments ci
+        JOIN transactions.creditcard_transactions ct ON ci.creditcard_installments_transaction_id = ct.creditcard_transactions_id
+        JOIN transactions.creditcard_invoices inv ON ci.creditcard_installments_invoice_id = inv.creditcard_invoices_id
+        JOIN core.categories c ON ct.creditcard_transactions_category_id = c.categories_id
+    WHERE 
+        ct.creditcard_transactions_status = 'Efetuado'
+        AND ct.creditcard_transactions_is_installment = TRUE
+        AND inv.creditcard_invoices_due_date >= date_trunc('month', CURRENT_DATE + INTERVAL '1 month')
+        AND inv.creditcard_invoices_due_date < date_trunc('month', CURRENT_DATE + INTERVAL '2 month')
+    GROUP BY 
+        ct.creditcard_transactions_user_id, c.categories_id, c.categories_name
+),
+combined_card_totals AS (
+    SELECT
+        user_id,
+        category_id,
+        category_name,
+        SUM(card_amount) AS card_amount,
+        SUM(card_count) AS card_count
+    FROM
+        card_totals
+    GROUP BY
+        user_id, category_id, category_name
 )
 SELECT 
     COALESCE(s.user_id, c.user_id) AS user_id,
-    u.users_first_name || COALESCE(' ' || u.users_last_name, '') AS user_name,
     COALESCE(s.category_id, c.category_id) AS category_id,
     COALESCE(s.category_name, c.category_name) AS category_name,
     COALESCE(s.saldo_amount, 0) AS saldo_amount,
@@ -1774,12 +1840,9 @@ SELECT
     COALESCE(s.saldo_amount, 0) + COALESCE(c.card_amount, 0) AS total_amount
 FROM 
     saldo_totals s
-    FULL OUTER JOIN card_totals c ON s.user_id = c.user_id AND s.category_id = c.category_id
-    JOIN core.users u ON COALESCE(s.user_id, c.user_id) = u.users_id
-ORDER BY 
-    user_name, category_name;
+    FULL OUTER JOIN combined_card_totals c ON s.user_id = c.user_id AND s.category_id = c.category_id;
 
--- -- View para visualização de transações com saldo e cartão de crédito realizadas por categoria.
+-- View: Totais por categoria em todo o período 
 CREATE OR REPLACE VIEW transactions.view_all_time_category_totals AS
 WITH saldo_totals AS (
     SELECT 
@@ -1817,7 +1880,6 @@ card_totals AS (
 )
 SELECT 
     COALESCE(s.user_id, c.user_id) AS user_id,
-    u.users_first_name || COALESCE(' ' || u.users_last_name, '') AS user_name,
     COALESCE(s.category_id, c.category_id) AS category_id,
     COALESCE(s.category_name, c.category_name) AS category_name,
     COALESCE(s.saldo_amount, 0) AS saldo_amount,
@@ -1835,7 +1897,7 @@ SELECT
     ) AS last_transaction_date
 FROM 
     saldo_totals s
-    FULL OUTER JOIN card_totals c ON s.user_id = c.user_id AND s.category_id = c.category_id
-    JOIN core.users u ON COALESCE(s.user_id, c.user_id) = u.users_id
-ORDER BY 
-    user_name, category_name;
+    FULL OUTER JOIN card_totals c ON s.user_id = c.user_id AND s.category_id = c.category_id;
+
+ALTER VIEW transactions.view_all_time_category_totals OWNER TO "SisFinance-adm";
+COMMENT ON VIEW transactions.view_all_time_category_totals IS 'Exibe a soma total dos valores de transações de saldo e cartão de crédito de todos os tempos, agrupadas por categoria e usuário. Inclui datas da primeira e última transação.';

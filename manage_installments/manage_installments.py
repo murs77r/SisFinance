@@ -112,11 +112,20 @@ def needs_installment_update(conn, transaction_id, total_value, total_fees) -> b
     Retorna True se:
     1. Não existirem parcelas para a transação
     2. A soma das parcelas existentes for diferente do valor total da transação
-    3. O número de parcelas existentes for insuficiente
+       E pelo menos uma parcela tem creditcard_installments_update_alert = TRUE
     
-    A verificação leva em conta uma margem de tolerância para erros de arredondamento.
+    Não faz a verificação ou atualização se todas as parcelas tiverem 
+    creditcard_installments_update_alert = FALSE.
     """
-    query = """
+    query_check_alert = """
+        SELECT 
+            COUNT(*) > 0 as has_update_alert
+        FROM transactions.creditcard_installments
+        WHERE creditcard_installments_transaction_id = %s
+          AND creditcard_installments_update_alert = TRUE
+    """
+    
+    query_installments = """
         SELECT 
             COUNT(*) as parcelas_count,
             COALESCE(SUM(creditcard_installments_base_value), 0) as soma_base,
@@ -132,12 +141,7 @@ def needs_installment_update(conn, transaction_id, total_value, total_fees) -> b
     """
     
     with conn.cursor() as cur:
-        # Verificar parcelas existentes
-        cur.execute(query, (transaction_id,))
-        result = cur.fetchone()
-        parcelas_count, soma_base, soma_taxas = result
-        
-        # Verificar número total esperado de parcelas
+        # Verificar transação
         cur.execute(query_total_count, (transaction_id,))
         total_count_result = cur.fetchone()
         if total_count_result is None:
@@ -147,6 +151,11 @@ def needs_installment_update(conn, transaction_id, total_value, total_fees) -> b
         
         total_expected_count = total_count_result[0]
         
+        # Verificar parcelas existentes
+        cur.execute(query_installments, (transaction_id,))
+        result = cur.fetchone()
+        parcelas_count, soma_base, soma_taxas = result
+        
         # Se não existem parcelas, precisa criar
         if parcelas_count == 0:
             return True
@@ -155,17 +164,28 @@ def needs_installment_update(conn, transaction_id, total_value, total_fees) -> b
         if parcelas_count < total_expected_count:
             return True
         
+        # Verificar se há pelo menos uma parcela com update_alert = TRUE
+        cur.execute(query_check_alert, (transaction_id,))
+        has_update_alert = cur.fetchone()[0]
+        
+        # Se nenhuma parcela tem update_alert = TRUE, não fazer atualização
+        if not has_update_alert:
+            return False
+        
+        # Calcular o total efetivo para comparação (sem levar em conta o sinal)
+        total_effective = abs(total_value + total_fees)
+        sum_effective = abs(soma_base + soma_taxas)
+        
+        # Verificar diferença entre valor total e soma das parcelas
+        value_difference = abs(total_effective - sum_effective)
+        
         # Margem de tolerância para erros de arredondamento (1 centavo por parcela)
         tolerance = 0.01 * parcelas_count
         
-        # Verificar diferença entre valor total e soma das parcelas
-        value_difference = abs(total_value - soma_base)
-        fees_difference = abs(total_fees - soma_taxas)
-        
         # Se a diferença for maior que a tolerância, precisa atualizar
-        if value_difference > tolerance or fees_difference > tolerance:
+        if value_difference > tolerance:
             logger.info(f"Transação {transaction_id} precisa de atualização. " 
-                       f"Diferença de valor: {value_difference}, diferença de taxas: {fees_difference}")
+                       f"Diferença de valor: {value_difference}, parcela(s) com update_alert=TRUE")
             return True
         
         return False
@@ -208,6 +228,7 @@ def fetch_unprocessed_installment_transactions(conn, batch_start: int, batch_siz
               )
               OR 
               -- Transações que têm diferença de valor entre a soma das parcelas e o valor total
+              -- E pelo menos uma parcela com update_alert = TRUE
               EXISTS (
                   SELECT 1
                   FROM (
@@ -222,9 +243,14 @@ def fetch_unprocessed_installment_transactions(conn, batch_start: int, batch_siz
                   WHERE 
                       sums.parcelas_count = ct.creditcard_transactions_installment_count
                       AND (
-                          ABS(sums.soma_base - ct.creditcard_transactions_base_value) > (0.01 * sums.parcelas_count)
-                          OR ABS(sums.soma_taxas - ct.creditcard_transactions_fees_taxes) > (0.01 * sums.parcelas_count)
+                          ABS(sums.soma_base + sums.soma_taxas - ABS(ct.creditcard_transactions_total_effective)) > (0.01 * sums.parcelas_count)
                       )
+              )
+              AND EXISTS (
+                  SELECT 1 
+                  FROM transactions.creditcard_installments ci
+                  WHERE ci.creditcard_installments_transaction_id = ct.creditcard_transactions_id
+                    AND ci.creditcard_installments_update_alert = TRUE
               )
           )
         ORDER BY ct.creditcard_transactions_implementation_datetime
@@ -261,6 +287,7 @@ def count_total_unprocessed_transactions(conn) -> int:
               )
               OR 
               -- Transações que têm diferença de valor entre a soma das parcelas e o valor total
+              -- E pelo menos uma parcela com update_alert = TRUE
               EXISTS (
                   SELECT 1
                   FROM (
@@ -275,9 +302,14 @@ def count_total_unprocessed_transactions(conn) -> int:
                   WHERE 
                       sums.parcelas_count = ct.creditcard_transactions_installment_count
                       AND (
-                          ABS(sums.soma_base - ct.creditcard_transactions_base_value) > (0.01 * sums.parcelas_count)
-                          OR ABS(sums.soma_taxas - ct.creditcard_transactions_fees_taxes) > (0.01 * sums.parcelas_count)
+                          ABS(sums.soma_base + sums.soma_taxas - ABS(ct.creditcard_transactions_total_effective)) > (0.01 * sums.parcelas_count)
                       )
+              )
+              AND EXISTS (
+                  SELECT 1 
+                  FROM transactions.creditcard_installments ci
+                  WHERE ci.creditcard_installments_transaction_id = ct.creditcard_transactions_id
+                    AND ci.creditcard_installments_update_alert = TRUE
               )
           )
     """
