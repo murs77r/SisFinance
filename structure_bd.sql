@@ -223,20 +223,21 @@ COMMENT ON COLUMN core.institution_accounts.institution_accounts_last_update IS 
 -- Tabela: operators
 CREATE TABLE core.operators (
     operators_id character varying(50) NOT NULL,
-    operators_name character varying(150) NOT NULL,
     operators_user_id character varying(50) NOT NULL,
+    operators_name character varying(150) NOT NULL,
+    operators_mail character varying(255) NULL,
     operators_priority boolean NOT NULL DEFAULT false,
     operators_last_update timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT operators_pkey PRIMARY KEY (operators_id),
     CONSTRAINT operators_operator_name_key UNIQUE (operators_name),
     CONSTRAINT fk_operators_user FOREIGN KEY (operators_user_id) REFERENCES core.users(users_id) ON DELETE RESTRICT ON UPDATE NO ACTION
 );
-ALTER TABLE core.operators OWNER TO "SisFinance-adm";
 COMMENT ON TABLE core.operators IS 'Cadastro de operadores (pessoas ou sistemas) associados a um usuário, responsáveis por registrar transações ou recorrências.';
 COMMENT ON COLUMN core.operators.operators_id IS 'Identificador único do operador (PK, fornecido externamente).';
-COMMENT ON COLUMN core.operators.operators_name IS 'Nome identificador do operador (único). Ex: "Usuário Principal", "Débito Automático Luz".';
 COMMENT ON COLUMN core.operators.operators_user_id IS 'Referência ao usuário do sistema associado a este operador (FK para users.users_id).';
-COMMENT ON COLUMN core.operators.operators_priority IS 'Indica se este é o operador prioritário ou padrão para o usuário associado (DEFAULT FALSE).';
+COMMENT ON COLUMN core.operators.operators_name IS 'Nome identificador do operador (único).';
+COMMENT ON COLUMN core.operators.operators_mail IS 'E-mail do operador (até 255 caracteres, pode ser nulo).';
+COMMENT ON COLUMN core.operators.operators_priority IS 'Indica se este é o operador prioritário ou padrão para o usuário associado.';
 COMMENT ON COLUMN core.operators.operators_last_update IS 'Timestamp da criação ou última atualização manual deste registro de operador.';
 
 -- Tabela: user_accounts (Ligação Usuário-Produto)
