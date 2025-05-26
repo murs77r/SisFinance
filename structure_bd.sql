@@ -39,6 +39,11 @@ CREATE TYPE core.user_account_status AS ENUM ('Ativo', 'Inativo', 'Pendente');
 ALTER TYPE core.user_account_status OWNER TO "SisFinance-adm";
 COMMENT ON TYPE core.user_account_status IS 'Define os estados possíveis para a conta de um usuário (Ex: Ativo para uso normal, Inativo para suspenso, Pendente para aguardando confirmação).';
 
+-- Tipo de Chave PIX
+CREATE TYPE core.pix_key_type AS ENUM ('CPF', 'E-mail', 'Telefone', 'Aleatória');
+ALTER TYPE core.pix_key_type OWNER TO "SisFinance-adm";
+COMMENT ON TYPE core.pix_key_type IS 'Define os tipos possíveis de chaves PIX (CPF, E-mail, Telefone, Aleatória).';
+
 -- Operação Financeira (Crédito/Débito)
 CREATE TYPE core.operation AS ENUM ('Crédito', 'Débito');
 ALTER TYPE core.operation OWNER TO "SisFinance-adm";
@@ -94,6 +99,69 @@ CREATE TYPE auditoria.action_type AS ENUM ('INSERT', 'UPDATE', 'DELETE');
 ALTER TYPE auditoria.action_type OWNER TO "SisFinance-adm";
 COMMENT ON TYPE auditoria.action_type IS 'Define o tipo de operação realizada nos dados que está sendo registrada no log de auditoria.';
 
+
+-- Escolha Temporal do Relatório
+CREATE TYPE transactions.report_time_choice AS ENUM ('Por Lançamento', 'Por Data', 'Por Período');
+ALTER TYPE transactions.report_time_choice OWNER TO "SisFinance-adm";
+COMMENT ON TYPE transactions.report_time_choice IS 'Define o tipo de filtro temporal utilizado no relatório de transações (Ex: Por Lançamento para períodos de competência, Por Data para datas específicas, Por Período para intervalos relativos).';
+
+-- Tipo do Relatório
+CREATE TYPE transactions.report_type AS ENUM ('Cartão de Crédito', 'Saldo', 'Saldo e Cartão de Crédito');
+ALTER TYPE transactions.report_type OWNER TO "SisFinance-adm";
+COMMENT ON TYPE transactions.report_type IS 'Define o escopo das transações incluídas no relatório (Ex: apenas cartão, apenas saldo, ou ambos tipos de transação).';
+
+-- Período Relativo
+CREATE TYPE transactions.report_relative_period AS ENUM ('3 dias', '7 dias', '15 dias', '30 dias', 'Último Mês', 'Últimos 3 meses', 'Últimos 6 meses', 'Último 1 ano', 'Último Ano');
+ALTER TYPE transactions.report_relative_period OWNER TO "SisFinance-adm";
+COMMENT ON TYPE transactions.report_relative_period IS 'Define períodos relativos à data atual para filtros temporais dinâmicos em relatórios de transações.';
+
+-- Frequência de Geração Automática
+CREATE TYPE transactions.report_auto_frequency AS ENUM ('Mensalmente', 'Bimestralmente', 'Trimestralmente', 'Semestralmente', 'Anualmente');
+ALTER TYPE transactions.report_auto_frequency OWNER TO "SisFinance-adm";
+COMMENT ON TYPE transactions.report_auto_frequency IS 'Define a periodicidade com que um relatório automático deve ser gerado e enviado.';
+
+-- Status de Recorrência do Relatório
+CREATE TYPE transactions.report_recurring_status AS ENUM ('Ativado', 'Desativado');
+ALTER TYPE transactions.report_recurring_status OWNER TO "SisFinance-adm";
+COMMENT ON TYPE transactions.report_recurring_status IS 'Define se um relatório com geração automática está atualmente ativo (gerando relatórios) ou desativado (pausado).';
+
+-- =============================================================================
+-- CRIAÇÃO ESPECÍFICA DA FUNÇÃO validate_email_format
+-- =============================================================================
+
+CREATE OR REPLACE FUNCTION public.validate_email_format(email_input TEXT)
+RETURNS TEXT AS $$
+DECLARE
+    clean_email TEXT;
+BEGIN
+    -- Normalização: trim e lowercase
+    clean_email := lower(trim(email_input));
+    
+    -- Verifica formato básico de e-mail usando regex
+    IF NOT (clean_email ~ '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$') THEN
+        RAISE EXCEPTION 'E-mail inválido: formato incorreto. E-mail informado: %', email_input;
+    END IF;
+    
+    -- Verifica se o e-mail não é muito longo (máximo 254 caracteres conforme RFC)
+    IF length(clean_email) > 254 THEN
+        RAISE EXCEPTION 'E-mail inválido: muito longo (máximo 254 caracteres). E-mail informado: %', email_input;
+    END IF;
+    
+    -- Verifica se não tem pontos consecutivos
+    IF clean_email ~ '\.\.' THEN
+        RAISE EXCEPTION 'E-mail inválido: não pode conter pontos consecutivos. E-mail informado: %', email_input;
+    END IF;
+    
+    -- Verifica se não começa ou termina com ponto
+    IF clean_email ~ '^\.|\.$' THEN
+        RAISE EXCEPTION 'E-mail inválido: não pode começar ou terminar com ponto. E-mail informado: %', email_input;
+    END IF;
+    
+    RETURN clean_email;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+
 -- =============================================================================
 -- CRIAÇÃO DAS TABELAS DO SCHEMA "core"
 -- =============================================================================
@@ -111,7 +179,11 @@ CREATE TABLE core.users (
     users_creation_datetime timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     users_last_update timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT users_pkey PRIMARY KEY (users_id),
-    CONSTRAINT users_email_key UNIQUE (users_email)
+    CONSTRAINT users_email_key UNIQUE (users_email),
+    CONSTRAINT chk_users_email_format CHECK (
+    validate_email_format(users_email) IS NOT NULL
+    AND lower(users_email) = users_email
+)
 );
 ALTER TABLE core.users OWNER to "SisFinance-adm";
 COMMENT ON TABLE core.users IS 'Armazena informações sobre os usuários do sistema.';
@@ -232,6 +304,7 @@ CREATE TABLE core.operators (
     CONSTRAINT operators_operator_name_key UNIQUE (operators_name),
     CONSTRAINT fk_operators_user FOREIGN KEY (operators_user_id) REFERENCES core.users(users_id) ON DELETE RESTRICT ON UPDATE NO ACTION
 );
+ALTER TABLE core.operators OWNER to "SisFinance-adm";
 COMMENT ON TABLE core.operators IS 'Cadastro de operadores (pessoas ou sistemas) associados a um usuário, responsáveis por registrar transações ou recorrências.';
 COMMENT ON COLUMN core.operators.operators_id IS 'Identificador único do operador (PK, fornecido externamente).';
 COMMENT ON COLUMN core.operators.operators_user_id IS 'Referência ao usuário do sistema associado a este operador (FK para users.users_id).';
@@ -245,7 +318,6 @@ CREATE TABLE core.user_accounts (
     user_accounts_id character varying(50) NOT NULL,
     user_accounts_user_id character varying(50) NOT NULL,
     user_accounts_institution_account_id character varying(50) NOT NULL,
-    user_accounts_financial_institution_type core.account_type NOT NULL,
     user_accounts_agency character varying(10) NULL,
     user_accounts_number character varying(100) NULL,
     user_accounts_last_update timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -259,7 +331,6 @@ COMMENT ON TABLE core.user_accounts IS 'Associação entre usuários e os produt
 COMMENT ON COLUMN core.user_accounts.user_accounts_id IS 'Identificador único da associação usuário-produto (PK, fornecido externamente).';
 COMMENT ON COLUMN core.user_accounts.user_accounts_user_id IS 'Referência ao usuário proprietário desta conta (FK para users).';
 COMMENT ON COLUMN core.user_accounts.user_accounts_institution_account_id IS 'Referência ao produto financeiro específico que o usuário possui (FK para institution_accounts).';
-COMMENT ON COLUMN core.user_accounts.user_accounts_financial_institution_type IS 'Tipo da conta/produto financeiro (ENUM account_type, para referência rápida e facilidade de consulta, desnormalizado).';
 COMMENT ON COLUMN core.user_accounts.user_accounts_agency IS 'Número da agência bancária associada a esta conta do usuário, se aplicável (opcional).';
 COMMENT ON COLUMN core.user_accounts.user_accounts_number IS 'Número da conta bancária (ou identificador similar) associada a esta conta do usuário, se aplicável (opcional).';
 COMMENT ON COLUMN core.user_accounts.user_accounts_last_update IS 'Timestamp da criação ou última atualização manual deste registro de associação.';
@@ -268,6 +339,7 @@ COMMENT ON COLUMN core.user_accounts.user_accounts_last_update IS 'Timestamp da 
 CREATE TABLE core.user_accounts_pix_keys (
     user_accounts_pix_keys_id character varying(50) NOT NULL,
     user_accounts_pix_keys_user_account_id character varying(50) NOT NULL,
+    user_accounts_pix_keys_type core.pix_key_type NOT NULL,
     user_accounts_pix_keys_key text NOT NULL,
     user_accounts_pix_keys_last_update timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT user_accounts_pix_keys_pkey PRIMARY KEY (user_accounts_pix_keys_id),
@@ -278,6 +350,7 @@ ALTER TABLE core.user_accounts_pix_keys OWNER TO "SisFinance-adm";
 COMMENT ON TABLE core.user_accounts_pix_keys IS 'Armazena as chaves PIX individuais associadas a uma conta específica de um usuário (referenciando user_accounts).';
 COMMENT ON COLUMN core.user_accounts_pix_keys.user_accounts_pix_keys_id IS 'Identificador único para esta entrada de chave PIX (PK, fornecido externamente).';
 COMMENT ON COLUMN core.user_accounts_pix_keys.user_accounts_pix_keys_user_account_id IS 'Referência à associação usuário-conta específica à qual esta chave PIX pertence (FK para user_accounts).';
+COMMENT ON COLUMN core.user_accounts_pix_keys.user_accounts_pix_keys_type IS 'Tipo da chave PIX (CPF, E-mail, Telefone, Aleatória).';
 COMMENT ON COLUMN core.user_accounts_pix_keys.user_accounts_pix_keys_key IS 'A chave PIX em si (e-mail, telefone, CPF/CNPJ, chave aleatória).';
 COMMENT ON COLUMN core.user_accounts_pix_keys.user_accounts_pix_keys_last_update IS 'Timestamp da criação ou última atualização manual deste registro de chave PIX.';
 
@@ -510,12 +583,12 @@ COMMENT ON COLUMN transactions.internal_transfers.internal_transfers_last_update
 CREATE TABLE transactions.creditcard_invoices (
     creditcard_invoices_id character varying(50) NOT NULL,
     creditcard_invoices_user_creditcard_id character varying(50) NOT NULL,
-    creditcard_invoices_user_id character varying(50) NOT NULL, -- Redundante, mas mantido para conveniência
+    creditcard_invoices_user_id character varying(50) NOT NULL,
     creditcard_invoices_creation_datetime timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     creditcard_invoices_opening_date date NOT NULL,
     creditcard_invoices_closing_date date NOT NULL,
     creditcard_invoices_due_date date NOT NULL,
-    creditcard_invoices_statement_period character varying(7) NOT NULL, -- Formato YYYY-MM
+    creditcard_invoices_statement_period character varying(7) NOT NULL,
     creditcard_invoices_amount numeric(15, 2) NOT NULL DEFAULT 0,
     creditcard_invoices_paid_amount numeric(15, 2) NOT NULL DEFAULT 0,
     creditcard_invoices_payment_date date,
@@ -524,14 +597,12 @@ CREATE TABLE transactions.creditcard_invoices (
     creditcard_invoices_last_update timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT creditcard_invoices_pkey PRIMARY KEY (creditcard_invoices_id),
     CONSTRAINT fk_invoice_usercard FOREIGN KEY (creditcard_invoices_user_creditcard_id) REFERENCES core.user_creditcard(user_creditcard_id) ON DELETE CASCADE ON UPDATE NO ACTION,
-    CONSTRAINT fk_invoice_user FOREIGN KEY (creditcard_invoices_user_id) REFERENCES core.users(users_id) ON DELETE CASCADE ON UPDATE NO ACTION,
     CONSTRAINT uq_invoice_card_period UNIQUE (creditcard_invoices_user_creditcard_id, creditcard_invoices_statement_period)
 );
 ALTER TABLE transactions.creditcard_invoices OWNER TO "SisFinance-adm";
 COMMENT ON TABLE transactions.creditcard_invoices IS 'Representa cada fatura mensal de um cartão de crédito específico do usuário.';
 COMMENT ON COLUMN transactions.creditcard_invoices.creditcard_invoices_id IS 'Identificador único da fatura (PK, fornecido externamente).';
 COMMENT ON COLUMN transactions.creditcard_invoices.creditcard_invoices_user_creditcard_id IS 'Referência à associação usuário-cartão à qual esta fatura pertence (FK para user_creditcard).';
-COMMENT ON COLUMN transactions.creditcard_invoices.creditcard_invoices_user_id IS 'Referência ao usuário proprietário da fatura (FK para users, denormalizado para conveniência).';
 COMMENT ON COLUMN transactions.creditcard_invoices.creditcard_invoices_creation_datetime IS 'Data e hora de criação do registro da fatura no sistema.';
 COMMENT ON COLUMN transactions.creditcard_invoices.creditcard_invoices_opening_date IS 'Data de início do período de compras desta fatura.';
 COMMENT ON COLUMN transactions.creditcard_invoices.creditcard_invoices_closing_date IS 'Data de fechamento para novas compras desta fatura.';
@@ -713,6 +784,141 @@ COMMENT ON COLUMN transactions.creditcard_installments.creditcard_installments_t
 COMMENT ON COLUMN transactions.creditcard_installments.creditcard_installments_update_alert IS 'Registro de atualização caso seja necessário.';
 COMMENT ON COLUMN transactions.creditcard_installments.creditcard_installments_last_update IS 'Timestamp da última atualização manual deste registro de parcela.';
 
+-- Tabela: transaction_reports
+CREATE TABLE transactions.transaction_reports (
+    report_id character varying(50) NOT NULL,
+    report_user_id character varying(50) NOT NULL,
+    report_time_choice transactions.report_time_choice NOT NULL,
+    report_type transactions.report_type NOT NULL,
+    report_initial_month_launch transactions.month_enum NULL,
+    report_initial_year_launch integer NULL CHECK (report_initial_year_launch IS NULL OR (report_initial_year_launch >= 2020 AND report_initial_year_launch <= 2099)),
+    report_final_month_launch transactions.month_enum NULL,
+    report_final_year_launch integer NULL CHECK (report_final_year_launch IS NULL OR (report_final_year_launch >= 2020 AND report_final_year_launch <= 2099)),
+    report_initial_date date NULL,
+    report_final_date date NULL,
+    report_relative_period transactions.report_relative_period NULL,
+    report_filter_by_account boolean NULL,
+    report_account_id character varying(50) NULL,
+    report_filter_by_creditcard boolean NULL,
+    report_user_creditcard_id character varying(50) NULL,
+    report_filter_by_operator boolean NOT NULL DEFAULT false,
+    report_operator_id character varying(50) NULL,
+    report_filter_by_description boolean NOT NULL DEFAULT false,
+    report_description text NULL,
+    report_filter_by_proceeding_saldo boolean NULL,
+    report_proceeding_saldo_id character varying(50) NULL,
+    report_filter_by_proceeding_creditcard boolean NULL,
+    report_proceeding_creditcard transactions.creditcard_transaction_procedure NULL,
+    report_filter_by_status boolean NOT NULL DEFAULT false,
+    report_status transactions.status NULL,
+    report_filter_by_recurrence_id boolean NOT NULL DEFAULT false,
+    report_recurrence_id character varying(50) NULL,
+    report_filter_by_category boolean NOT NULL DEFAULT false,
+    report_category_id character varying(50) NULL,
+    report_filter_by_ir_relevance boolean NOT NULL DEFAULT false,
+    report_ir_relevance boolean NULL,
+    report_filter_by_operation boolean NULL,
+    report_operation core.operation NULL,
+    report_filter_by_installments boolean NULL,
+    report_installments boolean NULL,
+    report_number_of_installments integer NULL CHECK (report_number_of_installments IS NULL OR (report_number_of_installments >= 1 AND report_number_of_installments <= 420)),
+    report_send_to_operator_id character varying(50) NOT NULL,
+    report_auto_generate boolean NOT NULL DEFAULT false,
+    report_auto_frequency transactions.report_auto_frequency NULL,
+    report_insights text NULL,
+    report_generation_datetime timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    report_sent_datetime timestamp with time zone NULL,
+    report_access_link text NULL,
+    report_already_generated boolean NULL,
+    report_recurring_status transactions.report_recurring_status NULL,
+    CONSTRAINT transaction_reports_pkey PRIMARY KEY (report_id),
+    CONSTRAINT fk_transactionreports_user FOREIGN KEY (report_user_id) REFERENCES core.users(users_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
+    CONSTRAINT fk_transactionreports_acc FOREIGN KEY (report_account_id) REFERENCES core.user_accounts(user_accounts_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
+    CONSTRAINT fk_transactionreports_cc FOREIGN KEY (report_user_creditcard_id) REFERENCES core.user_creditcard(user_creditcard_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
+    CONSTRAINT fk_transactionreports_oper FOREIGN KEY (report_operator_id) REFERENCES core.operators(operators_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
+    CONSTRAINT fk_transactionreports_send_oper FOREIGN KEY (report_send_to_operator_id) REFERENCES core.operators(operators_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
+    CONSTRAINT fk_transactionreports_procS FOREIGN KEY (report_proceeding_saldo_id) REFERENCES core.proceedings_saldo(proceedings_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
+    CONSTRAINT fk_transactionreports_rec FOREIGN KEY (report_recurrence_id) REFERENCES transactions.recurrence_saldo(recurrence_saldo_id) ON DELETE SET NULL ON UPDATE NO ACTION,
+    CONSTRAINT fk_transactionreports_cat FOREIGN KEY (report_category_id) REFERENCES core.categories(categories_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
+    CONSTRAINT chk_time_choice_launch_fields CHECK ((report_time_choice = 'Por Lançamento' AND (report_initial_month_launch IS NOT NULL OR report_initial_year_launch IS NOT NULL OR report_final_month_launch IS NOT NULL OR report_final_year_launch IS NOT NULL)) OR (report_time_choice <> 'Por Lançamento' AND report_initial_month_launch IS NULL AND report_initial_year_launch IS NULL AND report_final_month_launch IS NULL AND report_final_year_launch IS NULL)),
+    CONSTRAINT chk_time_choice_date_fields CHECK ((report_time_choice = 'Por Data' AND (report_initial_date IS NOT NULL OR report_final_date IS NOT NULL)) OR (report_time_choice <> 'Por Data' AND report_initial_date IS NULL AND report_final_date IS NULL)),
+    CONSTRAINT chk_time_choice_period_field CHECK ((report_time_choice = 'Por Período' AND report_relative_period IS NOT NULL) OR (report_time_choice <> 'Por Período' AND report_relative_period IS NULL)),
+    CONSTRAINT chk_account_filter_type CHECK ((report_type IN ('Saldo', 'Saldo e Cartão de Crédito') AND report_filter_by_account IS NOT NULL) OR (report_type = 'Cartão de Crédito' AND report_filter_by_account IS NULL)),
+    CONSTRAINT chk_creditcard_filter_type CHECK ((report_type IN ('Cartão de Crédito', 'Saldo e Cartão de Crédito') AND report_filter_by_creditcard IS NOT NULL) OR (report_type = 'Saldo' AND report_filter_by_creditcard IS NULL)),
+    CONSTRAINT chk_proceeding_saldo_type CHECK ((report_type IN ('Saldo', 'Saldo e Cartão de Crédito') AND report_filter_by_proceeding_saldo IS NOT NULL) OR (report_type = 'Cartão de Crédito' AND report_filter_by_proceeding_saldo IS NULL)),
+    CONSTRAINT chk_proceeding_cc_type CHECK ((report_type IN ('Cartão de Crédito', 'Saldo e Cartão de Crédito') AND report_filter_by_proceeding_creditcard IS NOT NULL) OR (report_type = 'Saldo' AND report_filter_by_proceeding_creditcard IS NULL)),
+    CONSTRAINT chk_operation_filter_type CHECK ((report_type IN ('Saldo', 'Saldo e Cartão de Crédito') AND report_filter_by_operation IS NOT NULL) OR (report_type = 'Cartão de Crédito' AND report_filter_by_operation IS NULL)),
+    CONSTRAINT chk_installments_filter_type CHECK ((report_type IN ('Cartão de Crédito', 'Saldo e Cartão de Crédito') AND report_filter_by_installments IS NOT NULL) OR (report_type = 'Saldo' AND report_filter_by_installments IS NULL)),
+    CONSTRAINT chk_account_conditional CHECK ((report_filter_by_account IS TRUE AND report_account_id IS NOT NULL) OR (report_filter_by_account IS NOT TRUE AND report_account_id IS NULL)),
+    CONSTRAINT chk_creditcard_conditional CHECK ((report_filter_by_creditcard IS TRUE AND report_user_creditcard_id IS NOT NULL) OR (report_filter_by_creditcard IS NOT TRUE AND report_user_creditcard_id IS NULL)),
+    CONSTRAINT chk_operator_conditional CHECK ((report_filter_by_operator IS TRUE AND report_operator_id IS NOT NULL) OR (report_filter_by_operator IS NOT TRUE AND report_operator_id IS NULL)),
+    CONSTRAINT chk_description_conditional CHECK ((report_filter_by_description IS TRUE AND report_description IS NOT NULL) OR (report_filter_by_description IS NOT TRUE AND report_description IS NULL)),
+    CONSTRAINT chk_proceeding_saldo_conditional CHECK ((report_filter_by_proceeding_saldo IS TRUE AND report_proceeding_saldo_id IS NOT NULL) OR (report_filter_by_proceeding_saldo IS NOT TRUE AND report_proceeding_saldo_id IS NULL)),
+    CONSTRAINT chk_proceeding_cc_conditional CHECK ((report_filter_by_proceeding_creditcard IS TRUE AND report_proceeding_creditcard IS NOT NULL) OR (report_filter_by_proceeding_creditcard IS NOT TRUE AND report_proceeding_creditcard IS NULL)),
+    CONSTRAINT chk_status_conditional CHECK ((report_filter_by_status IS TRUE AND report_status IS NOT NULL) OR (report_filter_by_status IS NOT TRUE AND report_status IS NULL)),
+    CONSTRAINT chk_recurrence_conditional CHECK ((report_filter_by_recurrence_id IS TRUE AND report_recurrence_id IS NOT NULL) OR (report_filter_by_recurrence_id IS NOT TRUE AND report_recurrence_id IS NULL)),
+    CONSTRAINT chk_category_conditional CHECK ((report_filter_by_category IS TRUE AND report_category_id IS NOT NULL) OR (report_filter_by_category IS NOT TRUE AND report_category_id IS NULL)),
+    CONSTRAINT chk_ir_conditional CHECK ((report_filter_by_ir_relevance IS TRUE AND report_ir_relevance IS NOT NULL) OR (report_filter_by_ir_relevance IS NOT TRUE AND report_ir_relevance IS NULL)),
+    CONSTRAINT chk_operation_conditional CHECK ((report_filter_by_operation IS TRUE AND report_operation IS NOT NULL) OR (report_filter_by_operation IS NOT TRUE AND report_operation IS NULL)),
+    CONSTRAINT chk_installments_conditional CHECK ((report_filter_by_installments IS TRUE AND report_installments IS NOT NULL) OR (report_filter_by_installments IS NOT TRUE AND report_installments IS NULL)),
+    CONSTRAINT chk_number_installments_conditional CHECK ((report_installments IS TRUE AND report_number_of_installments IS NOT NULL) OR (report_installments IS NOT TRUE AND report_number_of_installments IS NULL)),
+    CONSTRAINT chk_auto_frequency_conditional CHECK ((report_auto_generate IS TRUE AND report_auto_frequency IS NOT NULL) OR (report_auto_generate IS NOT TRUE AND report_auto_frequency IS NULL)),
+    CONSTRAINT chk_recurring_status_conditional CHECK ((report_auto_generate IS TRUE AND report_recurring_status IS NOT NULL) OR (report_auto_generate IS NOT TRUE AND report_recurring_status IS NULL)),
+    CONSTRAINT chk_already_generated_conditional CHECK ((report_auto_generate IS TRUE) OR (report_auto_generate IS NOT TRUE AND report_already_generated IS NOT NULL)),
+    CONSTRAINT chk_date_logic CHECK (report_initial_date IS NULL OR report_final_date IS NULL OR report_final_date >= report_initial_date),
+    CONSTRAINT chk_year_logic CHECK (report_initial_year_launch IS NULL OR report_final_year_launch IS NULL OR report_final_year_launch >= report_initial_year_launch OR (report_final_year_launch = report_initial_year_launch AND (report_final_month_launch IS NULL OR report_initial_month_launch IS NULL)))
+);
+ALTER TABLE transactions.transaction_reports OWNER TO "SisFinance-adm";
+
+COMMENT ON TABLE transactions.transaction_reports IS 'Armazena configurações para geração de relatórios de transações financeiras, incluindo filtros avançados, agendamentos automáticos, controle de envio e metadados de geração.';
+
+COMMENT ON COLUMN transactions.transaction_reports.report_id IS 'Identificador único do relatório (PK, fornecido externamente).';
+COMMENT ON COLUMN transactions.transaction_reports.report_user_id IS 'Usuário proprietário deste relatório (FK para core.users).';
+COMMENT ON COLUMN transactions.transaction_reports.report_time_choice IS 'Define o tipo de filtro temporal do relatório (Por Lançamento, Por Data, Por Período).';
+COMMENT ON COLUMN transactions.transaction_reports.report_type IS 'Tipo de transações incluídas no relatório (Cartão de Crédito, Saldo, ou ambos).';
+COMMENT ON COLUMN transactions.transaction_reports.report_initial_month_launch IS 'Mês inicial para filtro por lançamento (só preenchido se time_choice = ''Por Lançamento'').';
+COMMENT ON COLUMN transactions.transaction_reports.report_initial_year_launch IS 'Ano inicial YYYY para filtro por lançamento (só preenchido se time_choice = ''Por Lançamento'').';
+COMMENT ON COLUMN transactions.transaction_reports.report_final_month_launch IS 'Mês final para filtro por lançamento (só preenchido se time_choice = ''Por Lançamento'').';
+COMMENT ON COLUMN transactions.transaction_reports.report_final_year_launch IS 'Ano final YYYY para filtro por lançamento (só preenchido se time_choice = ''Por Lançamento'').';
+COMMENT ON COLUMN transactions.transaction_reports.report_initial_date IS 'Data inicial para filtro por data específica (só preenchido se time_choice = ''Por Data'').';
+COMMENT ON COLUMN transactions.transaction_reports.report_final_date IS 'Data final para filtro por data específica (só preenchido se time_choice = ''Por Data'').';
+COMMENT ON COLUMN transactions.transaction_reports.report_relative_period IS 'Período relativo à data atual (só preenchido se time_choice = ''Por Período'').';
+COMMENT ON COLUMN transactions.transaction_reports.report_filter_by_account IS 'Indica se o relatório deve filtrar por conta específica (aplicável apenas para tipos que incluem transações de saldo).';
+COMMENT ON COLUMN transactions.transaction_reports.report_account_id IS 'Conta específica para filtrar (FK para core.user_accounts), só preenchido se filter_by_account = TRUE.';
+COMMENT ON COLUMN transactions.transaction_reports.report_filter_by_creditcard IS 'Indica se o relatório deve filtrar por cartão específico (aplicável apenas para tipos que incluem transações de cartão).';
+COMMENT ON COLUMN transactions.transaction_reports.report_user_creditcard_id IS 'Cartão específico para filtrar (FK para core.user_creditcard), só preenchido se filter_by_creditcard = TRUE.';
+COMMENT ON COLUMN transactions.transaction_reports.report_filter_by_operator IS 'Indica se o relatório deve filtrar por operador específico. Padrão: FALSE.';
+COMMENT ON COLUMN transactions.transaction_reports.report_operator_id IS 'Operador específico para filtrar (FK para core.operators), só preenchido se filter_by_operator = TRUE.';
+COMMENT ON COLUMN transactions.transaction_reports.report_filter_by_description IS 'Indica se o relatório deve filtrar por texto na descrição. Padrão: FALSE.';
+COMMENT ON COLUMN transactions.transaction_reports.report_description IS 'Texto para filtrar nas descrições das transações, só preenchido se filter_by_description = TRUE.';
+COMMENT ON COLUMN transactions.transaction_reports.report_filter_by_proceeding_saldo IS 'Indica se deve filtrar por procedimento de saldo específico (aplicável apenas para tipos que incluem transações de saldo).';
+COMMENT ON COLUMN transactions.transaction_reports.report_proceeding_saldo_id IS 'Procedimento de saldo específico para filtrar (FK para core.proceedings_saldo), só preenchido se filter_by_proceeding_saldo = TRUE.';
+COMMENT ON COLUMN transactions.transaction_reports.report_filter_by_proceeding_creditcard IS 'Indica se deve filtrar por procedimento de cartão específico (aplicável apenas para tipos que incluem transações de cartão).';
+COMMENT ON COLUMN transactions.transaction_reports.report_proceeding_creditcard IS 'Procedimento de cartão específico para filtrar (ENUM), só preenchido se filter_by_proceeding_creditcard = TRUE.';
+COMMENT ON COLUMN transactions.transaction_reports.report_filter_by_status IS 'Indica se o relatório deve filtrar por status específico (Efetuado/Pendente). Padrão: FALSE.';
+COMMENT ON COLUMN transactions.transaction_reports.report_status IS 'Status específico para filtrar (ENUM), só preenchido se filter_by_status = TRUE.';
+COMMENT ON COLUMN transactions.transaction_reports.report_filter_by_recurrence_id IS 'Indica se o relatório deve filtrar por recorrência específica. Padrão: FALSE.';
+COMMENT ON COLUMN transactions.transaction_reports.report_recurrence_id IS 'Recorrência específica para filtrar (FK para transactions.recurrence_saldo), só preenchido se filter_by_recurrence_id = TRUE.';
+COMMENT ON COLUMN transactions.transaction_reports.report_filter_by_category IS 'Indica se o relatório deve filtrar por categoria específica. Padrão: FALSE.';
+COMMENT ON COLUMN transactions.transaction_reports.report_category_id IS 'Categoria específica para filtrar (FK para core.categories), só preenchido se filter_by_category = TRUE.';
+COMMENT ON COLUMN transactions.transaction_reports.report_filter_by_ir_relevance IS 'Indica se o relatório deve filtrar por relevância para Imposto de Renda. Padrão: FALSE.';
+COMMENT ON COLUMN transactions.transaction_reports.report_ir_relevance IS 'Valor específico de relevância IR para filtrar (TRUE/FALSE), só preenchido se filter_by_ir_relevance = TRUE.';
+COMMENT ON COLUMN transactions.transaction_reports.report_filter_by_operation IS 'Indica se deve filtrar por tipo de operação específica (aplicável apenas para tipos que incluem transações de saldo).';
+COMMENT ON COLUMN transactions.transaction_reports.report_operation IS 'Tipo de operação específica para filtrar (Crédito/Débito), só preenchido se filter_by_operation = TRUE.';
+COMMENT ON COLUMN transactions.transaction_reports.report_filter_by_installments IS 'Indica se deve filtrar por transações parceladas (aplicável apenas para tipos que incluem transações de cartão).';
+COMMENT ON COLUMN transactions.transaction_reports.report_installments IS 'Se deve incluir transações parceladas (TRUE) ou não parceladas (FALSE), só preenchido se filter_by_installments = TRUE.';
+COMMENT ON COLUMN transactions.transaction_reports.report_number_of_installments IS 'Número específico de parcelas para filtrar (1-420), só preenchido se installments = TRUE.';
+COMMENT ON COLUMN transactions.transaction_reports.report_send_to_operator_id IS 'Operador destinatário do relatório gerado (FK para core.operators).';
+COMMENT ON COLUMN transactions.transaction_reports.report_auto_generate IS 'Indica se o relatório deve ser gerado automaticamente de forma recorrente. Padrão: FALSE.';
+COMMENT ON COLUMN transactions.transaction_reports.report_auto_frequency IS 'Frequência de geração automática do relatório, só preenchido se auto_generate = TRUE.';
+COMMENT ON COLUMN transactions.transaction_reports.report_insights IS 'Observações, análises ou comentários sobre o relatório (opcional).';
+COMMENT ON COLUMN transactions.transaction_reports.report_generation_datetime IS 'Data e hora exatas (UTC) de geração do relatório. Preenchido automaticamente.';
+COMMENT ON COLUMN transactions.transaction_reports.report_sent_datetime IS 'Data e hora exatas (UTC) de envio do relatório para o destinatário (opcional).';
+COMMENT ON COLUMN transactions.transaction_reports.report_access_link IS 'Link ou URL para acessar o relatório gerado (opcional).';
+COMMENT ON COLUMN transactions.transaction_reports.report_already_generated IS 'Indica se o relatório já foi gerado (NULL apenas para relatórios recorrentes que ainda não foram processados).';
+COMMENT ON COLUMN transactions.transaction_reports.report_recurring_status IS 'Status da recorrência automática (Ativado/Desativado), NULL apenas para relatórios não-recorrentes.';
+
+
 -- =============================================================================
 -- CRIAÇÃO DAS TABELAS DO SCHEMA "auditoria"
 -- =============================================================================
@@ -779,35 +985,28 @@ COMMENT ON COLUMN auditoria.transactions_audit_log.transactions_audit_log_new_da
 -- RELACIONAMENTOS ENTRE TABELAS ATRAVÉS DE FOREIGN KEYS
 -- =============================================================================
 
--- Operators tem FK para users
 ALTER TABLE core.operators 
     VALIDATE CONSTRAINT fk_operators_user;
 
--- Institution_accounts tem FKs para financial_institutions e account_types
 ALTER TABLE core.institution_accounts 
     VALIDATE CONSTRAINT fk_institution_accounts_institution,
     VALIDATE CONSTRAINT fk_institution_accounts_type;
 
--- User_accounts tem FKs para users e institution_accounts
 ALTER TABLE core.user_accounts 
     VALIDATE CONSTRAINT fk_user_accounts_user,
     VALIDATE CONSTRAINT fk_user_accounts_account;
 
--- User_accounts_pix_keys tem FK para user_accounts
 ALTER TABLE core.user_accounts_pix_keys 
     VALIDATE CONSTRAINT fk_uapix_user_account;
 
--- creditcard tem FK para financial_institutions
 ALTER TABLE core.creditcard 
     VALIDATE CONSTRAINT fk_creditcard_financial_institution;
 
--- User_creditcard tem FKs para users, creditcard e user_accounts
 ALTER TABLE core.user_creditcard 
     VALIDATE CONSTRAINT fk_usercred_user,
     VALIDATE CONSTRAINT fk_usercred_card,
     VALIDATE CONSTRAINT fk_usercred_payment_account;
 
--- Recurrence_saldo tem FKs para users, user_accounts, proceedings_saldo, categories e operators
 ALTER TABLE transactions.recurrence_saldo 
     VALIDATE CONSTRAINT fk_recurrence_user,
     VALIDATE CONSTRAINT fk_recurrence_user_account,
@@ -815,7 +1014,6 @@ ALTER TABLE transactions.recurrence_saldo
     VALIDATE CONSTRAINT fk_recurrence_category,
     VALIDATE CONSTRAINT fk_recurrence_operator;
 
--- Transactions_saldo tem FKs para users, user_accounts, proceedings_saldo, categories, operators e recurrence_saldo
 ALTER TABLE transactions.transactions_saldo 
     VALIDATE CONSTRAINT fk_transactions_user,
     VALIDATE CONSTRAINT fk_transactions_user_account,
@@ -824,26 +1022,21 @@ ALTER TABLE transactions.transactions_saldo
     VALIDATE CONSTRAINT fk_transactions_operator,
     VALIDATE CONSTRAINT fk_transactions_recurrence;
 
--- Internal_transfers tem FKs para users, user_accounts (origem e destino) e operators
 ALTER TABLE transactions.internal_transfers 
     VALIDATE CONSTRAINT fk_inttransf_user,
     VALIDATE CONSTRAINT fk_inttransf_origin,
     VALIDATE CONSTRAINT fk_inttransf_destination,
     VALIDATE CONSTRAINT fk_inttransf_operator;
 
--- creditcard_invoices tem FKs para user_creditcard e users
 ALTER TABLE transactions.creditcard_invoices 
-    VALIDATE CONSTRAINT fk_invoice_usercard,
-    VALIDATE CONSTRAINT fk_invoice_user;
+    VALIDATE CONSTRAINT fk_invoice_usercard;
 
--- Recurrence_creditcard tem FKs para users, user_creditcard, categories e operators
 ALTER TABLE transactions.recurrence_creditcard 
     VALIDATE CONSTRAINT fk_ccrecur_user,
     VALIDATE CONSTRAINT fk_ccrecur_usercard,
     VALIDATE CONSTRAINT fk_ccrecur_category,
     VALIDATE CONSTRAINT fk_ccrecur_operator;
 
--- creditcard_transactions tem FKs para users, user_creditcard, creditcard_invoices, categories, operators e recurrence_creditcard
 ALTER TABLE transactions.creditcard_transactions 
     VALIDATE CONSTRAINT fk_cctrans_user,
     VALIDATE CONSTRAINT fk_cctrans_usercard,
@@ -852,44 +1045,85 @@ ALTER TABLE transactions.creditcard_transactions
     VALIDATE CONSTRAINT fk_cctrans_operator,
     VALIDATE CONSTRAINT fk_cctrans_recurrence;
 
--- creditcard_installments tem FKs para creditcard_transactions e creditcard_invoices
 ALTER TABLE transactions.creditcard_installments 
     VALIDATE CONSTRAINT fk_ccinstall_transaction,
     VALIDATE CONSTRAINT fk_ccinstall_invoice;
 
--- Verificação final de integridade referencial
+ALTER TABLE transactions.transaction_reports 
+    VALIDATE CONSTRAINT fk_transactionreports_user,
+    VALIDATE CONSTRAINT fk_transactionreports_acc,
+    VALIDATE CONSTRAINT fk_transactionreports_cc,
+    VALIDATE CONSTRAINT fk_transactionreports_oper,
+    VALIDATE CONSTRAINT fk_transactionreports_send_oper,
+    VALIDATE CONSTRAINT fk_transactionreports_procS,
+    VALIDATE CONSTRAINT fk_transactionreports_rec,
+    VALIDATE CONSTRAINT fk_transactionreports_cat;
+
 ANALYZE;
 
 -- =============================================================================
 -- CRIAÇÃO DE ÍNDICES ESTRATÉGICOS PARA MELHORAR O DESEMPENHO
 -- =============================================================================
 
--- Índice para busca rápida de usuários por email (além da constraint UNIQUE já existente)
+CREATE INDEX idx_cctrans_competencia_period 
+ON transactions.creditcard_transactions (creditcard_transactions_statement_year, creditcard_transactions_statement_month, creditcard_transactions_user_id, creditcard_transactions_status);
+COMMENT ON INDEX transactions.idx_cctrans_competencia_period IS 'Otimiza consultas por período de competência (ano/mês) em transações de cartão, incluindo usuário e status para queries complexas.';
+
+CREATE INDEX idx_ccinstall_competencia_period 
+ON transactions.creditcard_installments (creditcard_installments_statement_year, creditcard_installments_statement_month, creditcard_installments_invoice_id);
+COMMENT ON INDEX transactions.idx_ccinstall_competencia_period IS 'Otimiza consultas por período de competência em parcelas de cartão, incluindo referência à fatura.';
+
+CREATE INDEX idx_cctrans_competencia_value 
+ON transactions.creditcard_transactions (creditcard_transactions_statement_year DESC, creditcard_transactions_statement_month DESC, creditcard_transactions_total_effective) 
+WHERE creditcard_transactions_status = 'Efetuado';
+COMMENT ON INDEX transactions.idx_cctrans_competencia_value IS 'Índice parcial para busca de transações efetuadas por competência ordenada decrescente, incluindo valor para análises financeiras.';
+
+CREATE INDEX idx_trans_saldo_balance_calc 
+ON transactions.transactions_saldo (transactions_saldo_user_accounts_id, transactions_saldo_status)
+WHERE transactions_saldo_status = 'Efetuado';
+COMMENT ON INDEX transactions.idx_trans_saldo_balance_calc IS 'Acelera o cálculo de saldo filtrando transações efetivadas por conta de usuário e status.';
+
+CREATE INDEX idx_trans_saldo_monthly 
+ON transactions.transactions_saldo 
+USING BTREE (date_trunc('month', transactions_saldo_implementation_datetime));
+COMMENT ON INDEX transactions.idx_trans_saldo_monthly IS 'Otimiza consultas que analisam transações agrupadas por mês usando a função date_trunc.';
+
+CREATE INDEX idx_invoice_open_status 
+ON transactions.creditcard_invoices (creditcard_invoices_status, creditcard_invoices_due_date)
+WHERE creditcard_invoices_status IN ('Aberta', 'Fechada', 'Vencida');
+COMMENT ON INDEX transactions.idx_invoice_open_status IS 'Acelera a busca de faturas pendentes (Aberta, Fechada ou Vencida) ordenadas por data de vencimento.';
+
+CREATE INDEX idx_category_time_analysis 
+ON transactions.transactions_saldo (transactions_saldo_category_id, date_trunc('month', transactions_saldo_implementation_datetime), transactions_saldo_operation)
+WHERE transactions_saldo_status = 'Efetuado';
+COMMENT ON INDEX transactions.idx_category_time_analysis IS 'Otimiza análises de gastos por categoria ao longo do tempo, facilitando relatórios mensais de despesas efetivadas.';
+
+CREATE INDEX idx_audit_period_table 
+ON auditoria.core_audit_log (date_trunc('day', core_audit_log_timestamp), core_audit_log_table_name, core_audit_log_action);
+COMMENT ON INDEX auditoria.idx_audit_period_table IS 'Melhora a performance de consultas em logs de auditoria quando filtrados por período diário e tipo de operação.';
+
+CREATE INDEX idx_recurrence_due_processing 
+ON transactions.recurrence_saldo (recurrence_saldo_status, recurrence_saldo_first_due_date, recurrence_saldo_frequency)
+WHERE recurrence_saldo_status = 'Ativo';
+COMMENT ON INDEX transactions.idx_recurrence_due_processing IS 'Acelera a identificação de recorrências ativas que precisam ser processadas, ordenadas por data do primeiro vencimento.';
+
 CREATE INDEX IF NOT EXISTS idx_users_status ON core.users (users_status);
 COMMENT ON INDEX core.idx_users_status IS 'Acelera a busca de usuários por status (Ativo, Inativo, Pendente).';
 
--- Índice único parcial para operators (garantindo apenas um operador prioritário por usuário)
 CREATE UNIQUE INDEX IF NOT EXISTS uq_operators_priority_true_per_user
 ON core.operators (operators_user_id)
 WHERE operators_priority IS TRUE;
 COMMENT ON INDEX core.uq_operators_priority_true_per_user IS 'Garante que um usuário possa ter apenas um operador marcado como prioritário.';
 
--- Índice adicional para busca de operadores por usuário
 CREATE INDEX IF NOT EXISTS idx_operators_user_id ON core.operators (operators_user_id);
 COMMENT ON INDEX core.idx_operators_user_id IS 'Acelera a busca de operadores por usuário.';
 
--- Índices para user_accounts para melhorar o desempenho de consultas de contas
 CREATE INDEX IF NOT EXISTS idx_user_accounts_user_id ON core.user_accounts (user_accounts_user_id);
 COMMENT ON INDEX core.idx_user_accounts_user_id IS 'Acelera a busca de contas por usuário.';
 
-CREATE INDEX IF NOT EXISTS idx_user_accounts_type ON core.user_accounts (user_accounts_financial_institution_type);
-COMMENT ON INDEX core.idx_user_accounts_type IS 'Acelera a filtragem de contas por tipo.';
-
--- Índices para institution_accounts
 CREATE INDEX IF NOT EXISTS idx_institution_accounts_institution ON core.institution_accounts (institution_accounts_institution_id);
 COMMENT ON INDEX core.idx_institution_accounts_institution IS 'Acelera a busca de produtos por instituição financeira.';
 
--- Índices para user_creditcard
 CREATE INDEX IF NOT EXISTS idx_user_creditcard_user_id ON core.user_creditcard (user_creditcard_user_id);
 COMMENT ON INDEX core.idx_user_creditcard_user_id IS 'Acelera a busca de cartões por usuário.';
 
@@ -899,7 +1133,6 @@ COMMENT ON INDEX core.idx_user_cc_status IS 'Acelera filtros por cartões de usu
 CREATE INDEX IF NOT EXISTS idx_user_cc_payment_account ON core.user_creditcard (user_creditcard_payment_user_account_id);
 COMMENT ON INDEX core.idx_user_cc_payment_account IS 'Acelera busca por cartões de usuário ligados a uma conta de pagamento específica.';
 
--- Índices para transactions_saldo
 CREATE INDEX IF NOT EXISTS idx_trans_saldo_user_id ON transactions.transactions_saldo (transactions_saldo_user_id);
 COMMENT ON INDEX transactions.idx_trans_saldo_user_id IS 'Acelera a busca de transações por usuário.';
 
@@ -922,7 +1155,6 @@ CREATE INDEX IF NOT EXISTS idx_trans_saldo_recurrence_id ON transactions.transac
 WHERE transactions_saldo_recurrence_id IS NOT NULL;
 COMMENT ON INDEX transactions.idx_trans_saldo_recurrence_id IS 'Índice parcial para buscar transações de saldo geradas por recorrências específicas.';
 
--- Índices para recurrence_saldo
 CREATE INDEX IF NOT EXISTS idx_recurr_saldo_user_id ON transactions.recurrence_saldo (recurrence_saldo_user_id);
 COMMENT ON INDEX transactions.idx_recurr_saldo_user_id IS 'Acelera a busca de recorrências de saldo por usuário.';
 
@@ -932,7 +1164,6 @@ COMMENT ON INDEX transactions.idx_recurr_saldo_user_account_id IS 'Acelera a bus
 CREATE INDEX IF NOT EXISTS idx_recurr_saldo_status ON transactions.recurrence_saldo (recurrence_saldo_status);
 COMMENT ON INDEX transactions.idx_recurr_saldo_status IS 'Acelera a busca por recorrências de saldo ativas/inativas.';
 
--- Índices para creditcard_invoices
 CREATE INDEX IF NOT EXISTS idx_cc_invoice_user_id ON transactions.creditcard_invoices (creditcard_invoices_user_id);
 COMMENT ON INDEX transactions.idx_cc_invoice_user_id IS 'Acelera a busca de faturas por usuário.';
 
@@ -942,7 +1173,6 @@ COMMENT ON INDEX transactions.idx_cc_invoice_status IS 'Acelera filtros por stat
 CREATE INDEX IF NOT EXISTS idx_cc_invoice_due_date ON transactions.creditcard_invoices (creditcard_invoices_due_date);
 COMMENT ON INDEX transactions.idx_cc_invoice_due_date IS 'Acelera filtros e ordenação por data de vencimento da fatura.';
 
--- Índices para creditcard_transactions
 CREATE INDEX IF NOT EXISTS idx_cctrans_user_id ON transactions.creditcard_transactions (creditcard_transactions_user_id);
 COMMENT ON INDEX transactions.idx_cctrans_user_id IS 'Acelera a busca de transações de cartão por usuário.';
 
@@ -960,7 +1190,6 @@ CREATE INDEX IF NOT EXISTS idx_cctrans_statement_period ON transactions.creditca
 (creditcard_transactions_statement_year, creditcard_transactions_statement_month);
 COMMENT ON INDEX transactions.idx_cctrans_statement_period IS 'Acelera filtros/agrupamentos por período da fatura para transações de cartão.';
 
--- Índices para auditoria (para consultas de log rápidas)
 CREATE INDEX IF NOT EXISTS idx_core_audit_user_id ON auditoria.core_audit_log (core_audit_log_user_id);
 COMMENT ON INDEX auditoria.idx_core_audit_user_id IS 'Acelera a busca de logs por usuário no schema core.';
 
@@ -984,6 +1213,47 @@ COMMENT ON INDEX auditoria.idx_trans_audit_table IS 'Acelera a busca de logs por
 
 CREATE INDEX IF NOT EXISTS idx_trans_audit_action ON auditoria.transactions_audit_log (transactions_audit_log_action);
 COMMENT ON INDEX auditoria.idx_trans_audit_action IS 'Acelera a busca de logs por tipo de ação no schema transactions.';
+
+CREATE INDEX IF NOT EXISTS idx_transaction_reports_user_id ON transactions.transaction_reports (report_user_id);
+COMMENT ON INDEX transactions.idx_transaction_reports_user_id IS 'Acelera a busca de relatórios por usuário proprietário.';
+
+CREATE INDEX IF NOT EXISTS idx_transaction_reports_type ON transactions.transaction_reports (report_type);
+COMMENT ON INDEX transactions.idx_transaction_reports_type IS 'Acelera filtros por tipo de relatório (Cartão de Crédito, Saldo, ambos).';
+
+CREATE INDEX IF NOT EXISTS idx_transaction_reports_time_choice ON transactions.transaction_reports (report_time_choice);
+COMMENT ON INDEX transactions.idx_transaction_reports_time_choice IS 'Acelera filtros por escolha temporal do relatório.';
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_transaction_reports_auto_generate ON transactions.transaction_reports (report_auto_generate)
+WHERE report_auto_generate IS TRUE;
+COMMENT ON INDEX transactions.idx_transaction_reports_auto_generate IS 'Índice parcial para acelerar busca de relatórios com geração automática habilitada.';
+
+CREATE INDEX IF NOT EXISTS idx_transaction_reports_recurring_active ON transactions.transaction_reports (report_recurring_status)
+WHERE report_recurring_status = 'Ativado';
+COMMENT ON INDEX transactions.idx_transaction_reports_recurring_active IS 'Índice parcial para acelerar busca de relatórios com recorrência ativa.';
+
+CREATE INDEX IF NOT EXISTS idx_transaction_reports_user_type ON transactions.transaction_reports (report_user_id, report_type);
+COMMENT ON INDEX transactions.idx_transaction_reports_user_type IS 'Otimiza consultas de relatórios por usuário e tipo específico.';
+
+CREATE INDEX IF NOT EXISTS idx_transaction_reports_user_auto ON transactions.transaction_reports (report_user_id, report_auto_generate);
+COMMENT ON INDEX transactions.idx_transaction_reports_user_auto IS 'Otimiza busca de relatórios automáticos por usuário específico.';
+
+CREATE INDEX IF NOT EXISTS idx_transaction_reports_generation_date ON transactions.transaction_reports (report_generation_datetime);
+COMMENT ON INDEX transactions.idx_transaction_reports_generation_date IS 'Acelera ordenação por data de geração do relatório.';
+
+CREATE INDEX IF NOT EXISTS idx_transaction_reports_send_to ON transactions.transaction_reports (report_send_to_operator_id);
+COMMENT ON INDEX transactions.idx_transaction_reports_send_to IS 'Acelera busca de relatórios por operador destinatário.';
+
+CREATE INDEX IF NOT EXISTS idx_transaction_reports_account ON transactions.transaction_reports (report_account_id)
+WHERE report_account_id IS NOT NULL;
+COMMENT ON INDEX transactions.idx_transaction_reports_account IS 'Índice parcial para acelerar busca de relatórios filtrados por conta específica.';
+
+CREATE INDEX IF NOT EXISTS idx_transaction_reports_creditcard ON transactions.transaction_reports (report_user_creditcard_id)
+WHERE report_user_creditcard_id IS NOT NULL;
+COMMENT ON INDEX transactions.idx_transaction_reports_creditcard IS 'Índice parcial para acelerar busca de relatórios filtrados por cartão específico.';
+
+CREATE INDEX IF NOT EXISTS idx_transaction_reports_operator ON transactions.transaction_reports (report_operator_id)
+WHERE report_operator_id IS NOT NULL;
+COMMENT ON INDEX transactions.idx_transaction_reports_operator IS 'Índice parcial para acelerar busca de relatórios filtrados por operador específico.';
 
 -- =============================================================================
 -- CRIAÇÃO DE TRIGGERS DE IMUTABILIDADE DE PRIMARY KEY
@@ -1010,19 +1280,89 @@ $$ LANGUAGE plpgsql IMMUTABLE;
 ALTER FUNCTION public.prevent_generic_pk_update() OWNER TO "SisFinance-adm";
 COMMENT ON FUNCTION public.prevent_generic_pk_update() IS 'Função de Trigger genérica que impede a atualização da coluna de chave primária especificada como argumento. Garante a imutabilidade dos identificadores primários.';
 
--- Função específica para PK de transactions_saldo (permite verificações adicionais)
-CREATE OR REPLACE FUNCTION public.prevent_transactions_pk_update_conditional()
+-- Função para validar chaves PIX
+CREATE OR REPLACE FUNCTION public.validate_pix_key()
 RETURNS TRIGGER AS $$
 BEGIN
-    IF NEW.transactions_saldo_id IS DISTINCT FROM OLD.transactions_saldo_id AND
-       OLD.transactions_saldo_description LIKE '%Pagamento de Fatura%' THEN
-        RAISE EXCEPTION 'Atualização da chave primária "transactions_saldo_id" não é permitida para transações de "Pagamento de Fatura".';
+    -- Validação para chave PIX do tipo CPF
+    IF NEW.user_accounts_pix_keys_type = 'CPF' THEN
+        -- Remove caracteres não numéricos
+        NEW.user_accounts_pix_keys_key := regexp_replace(NEW.user_accounts_pix_keys_key, '[^0-9]', '', 'g');
+        
+        -- Verifica se tem exatamente 11 dígitos
+        IF length(NEW.user_accounts_pix_keys_key) != 11 THEN
+            RAISE EXCEPTION 'CPF deve conter exatamente 11 dígitos numéricos. CPF informado: %', NEW.user_accounts_pix_keys_key;
+        END IF;
+        
+        -- Verifica se não são todos os dígitos iguais
+        IF NEW.user_accounts_pix_keys_key ~ '^(.)\1{10}$' THEN
+            RAISE EXCEPTION 'CPF inválido: todos os dígitos são iguais. CPF informado: %', NEW.user_accounts_pix_keys_key;
+        END IF;
+        
+        -- Validação do dígito verificador do CPF
+        DECLARE
+            v_cpf TEXT := NEW.user_accounts_pix_keys_key;
+            v_soma INTEGER := 0;
+            v_resto INTEGER;
+            v_dv1 INTEGER;
+            v_dv2 INTEGER;
+            i INTEGER;
+        BEGIN
+            -- Cálculo do primeiro dígito verificador
+            FOR i IN 1..9 LOOP
+                v_soma := v_soma + (substring(v_cpf, i, 1)::INTEGER * (11 - i));
+            END LOOP;
+            
+            v_resto := v_soma % 11;
+            IF v_resto < 2 THEN
+                v_dv1 := 0;
+            ELSE
+                v_dv1 := 11 - v_resto;
+            END IF;
+            
+            -- Verifica o primeiro dígito
+            IF v_dv1 != substring(v_cpf, 10, 1)::INTEGER THEN
+                RAISE EXCEPTION 'CPF inválido: primeiro dígito verificador incorreto. CPF informado: %', NEW.user_accounts_pix_keys_key;
+            END IF;
+            
+            -- Cálculo do segundo dígito verificador
+            v_soma := 0;
+            FOR i IN 1..10 LOOP
+                v_soma := v_soma + (substring(v_cpf, i, 1)::INTEGER * (12 - i));
+            END LOOP;
+            
+            v_resto := v_soma % 11;
+            IF v_resto < 2 THEN
+                v_dv2 := 0;
+            ELSE
+                v_dv2 := 11 - v_resto;
+            END IF;
+            
+            -- Verifica o segundo dígito
+            IF v_dv2 != substring(v_cpf, 11, 1)::INTEGER THEN
+                RAISE EXCEPTION 'CPF inválido: segundo dígito verificador incorreto. CPF informado: %', NEW.user_accounts_pix_keys_key;
+            END IF;
+        END;
     END IF;
+    
+    -- Validação para chave PIX do tipo E-mail
+    IF NEW.user_accounts_pix_keys_type = 'E-mail' THEN
+        NEW.user_accounts_pix_keys_key := validate_email_format(NEW.user_accounts_pix_keys_key);
+    END IF;
+    
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql IMMUTABLE;
-ALTER FUNCTION public.prevent_transactions_pk_update_conditional() OWNER TO "SisFinance-adm";
-COMMENT ON FUNCTION public.prevent_transactions_pk_update_conditional() IS 'Impede a atualização da chave primária na tabela transactions_saldo se a descrição da transação contiver "Pagamento de Fatura".';
+$$ LANGUAGE plpgsql;
+
+ALTER FUNCTION public.validate_pix_key() OWNER TO "SisFinance-adm";
+COMMENT ON FUNCTION public.validate_pix_key() IS 'Função de trigger para validar chaves PIX do tipo CPF (validação completa com dígitos verificadores) e E-mail (validação de formato RFC).';
+
+-- Criação do trigger de validação das chaves PIX
+CREATE TRIGGER trigger_validate_pix_key
+    BEFORE INSERT OR UPDATE ON core.user_accounts_pix_keys
+    FOR EACH ROW EXECUTE FUNCTION public.validate_pix_key();
+
+COMMENT ON TRIGGER trigger_validate_pix_key ON core.user_accounts_pix_keys IS 'Trigger para validar automaticamente chaves PIX do tipo CPF e E-mail antes de inserir ou atualizar.';
 
 -- Trigger para users
 CREATE TRIGGER trigger_prevent_users_pk_update
@@ -1102,11 +1442,11 @@ BEFORE UPDATE ON transactions.transactions_saldo
 FOR EACH ROW EXECUTE FUNCTION public.prevent_generic_pk_update('transactions_saldo_id');
 COMMENT ON TRIGGER trigger_prevent_trans_saldo_pk_update ON transactions.transactions_saldo IS 'Trigger para impedir atualização da PK em transactions_saldo.';
 
--- Trigger adicional para transactions_saldo (condições específicas)
-CREATE TRIGGER trigger_prevent_trans_saldo_pk_update_conditional
-BEFORE UPDATE ON transactions.transactions_saldo
-FOR EACH ROW EXECUTE FUNCTION public.prevent_transactions_pk_update_conditional();
-COMMENT ON TRIGGER trigger_prevent_trans_saldo_pk_update_conditional ON transactions.transactions_saldo IS 'Trigger para verificações adicionais na atualização da PK em transactions_saldo.';
+-- Trigger para transaction_reports (usando a função específica)
+CREATE TRIGGER trigger_prevent_trans_reports_pk_update
+BEFORE UPDATE ON transactions.transaction_reports
+FOR EACH ROW EXECUTE FUNCTION public.prevent_generic_pk_update('report_id');
+COMMENT ON TRIGGER trigger_prevent_trans_reports_pk_update ON transactions.transaction_reports IS 'Trigger para impedir atualização da PK em transactions_reports.';
 
 -- Trigger para internal_transfers
 CREATE TRIGGER trigger_prevent_internal_transfers_pk_update
@@ -1232,8 +1572,8 @@ BEGIN
     IF (TG_OP = 'INSERT') THEN
         v_debit_txn_id := NEW.internal_transfers_id || '-D';
         v_credit_txn_id := NEW.internal_transfers_id || '-C';
-        v_credit_registration_datetime := NEW.internal_transfers_registration_datetime + INTERVAL '1 millisecond';
-        v_credit_implementation_datetime := NEW.internal_transfers_implementation_datetime + INTERVAL '1 millisecond';
+        v_credit_registration_datetime := NEW.internal_transfers_registration_datetime;
+        v_credit_implementation_datetime := NEW.internal_transfers_implementation_datetime;
 
         INSERT INTO transactions.transactions_saldo (
             transactions_saldo_id, transactions_saldo_user_id, transactions_saldo_user_accounts_id,
@@ -1307,6 +1647,9 @@ CREATE TRIGGER trigger_sync_internal_transfer
 AFTER INSERT OR UPDATE OR DELETE ON transactions.internal_transfers
 FOR EACH ROW EXECUTE FUNCTION public.sync_internal_transfer_to_transactions();
 COMMENT ON TRIGGER trigger_sync_internal_transfer ON transactions.internal_transfers IS 'Trigger para sincronizar internal_transfers com transactions_saldo.';
+
+ALTER FUNCTION public.validate_email_format(TEXT) OWNER TO "SisFinance-adm";
+COMMENT ON FUNCTION public.validate_email_format(TEXT) IS 'Função para validação e normalização de formato de e-mail. Retorna o e-mail normalizado (lowercase, trimmed) ou gera exceção se inválido.';
 
 -- Função para registrar auditoria no schema "core"
 CREATE OR REPLACE FUNCTION public.log_core_audit()
@@ -1539,7 +1882,7 @@ SELECT
     u.users_id,
     fi.financial_institutions_name AS bank_name,
     fi.financial_institutions_id AS bank_id,
-    ua.user_accounts_financial_institution_type AS account_type,
+    at.account_types_name AS account_type, -- CORREÇÃO AQUI
     ua.user_accounts_agency AS agency,
     ua.user_accounts_number AS account_number,
     COALESCE(b.balance, 0.00) AS current_balance
@@ -1548,6 +1891,7 @@ FROM
     JOIN core.users u ON ua.user_accounts_user_id = u.users_id
     JOIN core.institution_accounts ia ON ua.user_accounts_institution_account_id = ia.institution_accounts_id
     JOIN core.financial_institutions fi ON ia.institution_accounts_institution_id = fi.financial_institutions_id
+    JOIN core.account_types at ON ia.institution_accounts_type_id = at.account_types_id
     LEFT JOIN (
         SELECT 
             transactions_saldo_user_accounts_id,
@@ -1602,8 +1946,8 @@ SELECT *
 FROM transactions.creditcard_transactions
 WHERE creditcard_transactions_implementation_datetime >= date_trunc('month', CURRENT_DATE);
 
-COMMENT ON VIEW transactions.view_month_creditcard_transactions IS 'Exibe todas as transações de cartão de crédito realizadas a partir do início do mês atual.';
 ALTER VIEW transactions.view_month_creditcard_transactions OWNER TO "SisFinance-adm";
+COMMENT ON VIEW transactions.view_month_creditcard_transactions IS 'Exibe todas as transações de cartão de crédito realizadas a partir do início do mês atual.';
 
 -- View para visualização de transações com saldo realizadas por procedimento no mês atual.
 CREATE OR REPLACE VIEW transactions.view_current_month_proceeding_totals AS
@@ -1842,6 +2186,8 @@ SELECT
 FROM 
     saldo_totals s
     FULL OUTER JOIN combined_card_totals c ON s.user_id = c.user_id AND s.category_id = c.category_id;
+ALTER VIEW transactions.view_next_month_category_totals OWNER TO "SisFinance-adm";
+COMMENT ON VIEW transactions.view_next_month_category_totals IS 'Exibe a soma dos valores de transações de saldo e cartão de crédito do próximo mês, agrupadas por categoria e usuário, incluindo parcelas de cartão que vencem no período.';
 
 -- View: Totais por categoria em todo o período 
 CREATE OR REPLACE VIEW transactions.view_all_time_category_totals AS
