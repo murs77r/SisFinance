@@ -1276,7 +1276,7 @@ BEGIN
     END IF;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql IMMUTABLE;
+$$ LANGUAGE plpgsql VOLATILE;
 ALTER FUNCTION public.prevent_generic_pk_update() OWNER TO "SisFinance-adm";
 COMMENT ON FUNCTION public.prevent_generic_pk_update() IS 'Função de Trigger genérica que impede a atualização da coluna de chave primária especificada como argumento. Garante a imutabilidade dos identificadores primários.';
 
