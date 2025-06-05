@@ -414,7 +414,6 @@ COMMENT ON COLUMN core.user_creditcard.user_creditcard_last_update IS 'Timestamp
 -- Tabela: recurrence_saldo
 CREATE TABLE transactions.recurrence_saldo (
     recurrence_saldo_id character varying(50) NOT NULL,
-    recurrence_saldo_user_id character varying(50) NOT NULL,
     recurrence_saldo_user_account_id character varying(50) NOT NULL,
     recurrence_saldo_operation core.operation NOT NULL,
     recurrence_saldo_proceeding_id character varying(50) NOT NULL,
@@ -438,7 +437,6 @@ CREATE TABLE transactions.recurrence_saldo (
     recurrence_saldo_relevance_ir boolean NOT NULL DEFAULT false,
     recurrence_saldo_last_update timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT recurrence_saldo_pkey PRIMARY KEY (recurrence_saldo_id),
-    CONSTRAINT fk_recurrence_user FOREIGN KEY (recurrence_saldo_user_id) REFERENCES core.users(users_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
     CONSTRAINT fk_recurrence_user_account FOREIGN KEY (recurrence_saldo_user_account_id) REFERENCES core.user_accounts(user_accounts_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
     CONSTRAINT fk_recurrence_proceeding FOREIGN KEY (recurrence_saldo_proceeding_id) REFERENCES core.proceedings_saldo(proceedings_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
     CONSTRAINT fk_recurrence_category FOREIGN KEY (recurrence_saldo_category_id) REFERENCES core.categories(categories_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
@@ -451,7 +449,6 @@ CREATE TABLE transactions.recurrence_saldo (
 ALTER TABLE transactions.recurrence_saldo OWNER TO "SisFinance-adm";
 COMMENT ON TABLE transactions.recurrence_saldo IS 'Armazena os modelos/agendamentos de transações financeiras de saldo recorrentes.';
 COMMENT ON COLUMN transactions.recurrence_saldo.recurrence_saldo_id IS 'Identificador único da recorrência de saldo (PK, fornecido externamente).';
-COMMENT ON COLUMN transactions.recurrence_saldo.recurrence_saldo_user_id IS 'Usuário proprietário desta recorrência (FK para users).';
 COMMENT ON COLUMN transactions.recurrence_saldo.recurrence_saldo_user_account_id IS 'Referência à associação usuário-conta específica afetada pela recorrência (FK para user_accounts).';
 COMMENT ON COLUMN transactions.recurrence_saldo.recurrence_saldo_operation IS 'Natureza da operação (Crédito ou Débito) das transações geradas por esta recorrência.';
 COMMENT ON COLUMN transactions.recurrence_saldo.recurrence_saldo_proceeding_id IS 'Procedimento/método padrão das transações recorrentes (FK para proceedings_saldo).';
@@ -478,7 +475,6 @@ COMMENT ON COLUMN transactions.recurrence_saldo.recurrence_saldo_last_update IS 
 -- Tabela: transactions_saldo
 CREATE TABLE transactions.transactions_saldo (
     transactions_saldo_id character varying(50) NOT NULL,
-    transactions_saldo_user_id character varying(50) NOT NULL,
     transactions_saldo_user_accounts_id character varying(50) NOT NULL,
     transactions_saldo_operation core.operation NOT NULL,
     transactions_saldo_proceeding_id character varying(50) NOT NULL,
@@ -502,7 +498,6 @@ CREATE TABLE transactions.transactions_saldo (
     transactions_saldo_relevance_ir boolean NOT NULL DEFAULT false,
     transactions_saldo_last_update timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT transactions_saldo_pkey PRIMARY KEY (transactions_saldo_id),
-    CONSTRAINT fk_transactions_user FOREIGN KEY (transactions_saldo_user_id) REFERENCES core.users(users_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
     CONSTRAINT fk_transactions_user_account FOREIGN KEY (transactions_saldo_user_accounts_id) REFERENCES core.user_accounts(user_accounts_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
     CONSTRAINT fk_transactions_proceeding FOREIGN KEY (transactions_saldo_proceeding_id) REFERENCES core.proceedings_saldo(proceedings_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
     CONSTRAINT fk_transactions_category FOREIGN KEY (transactions_saldo_category_id) REFERENCES core.categories(categories_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
@@ -514,7 +509,6 @@ CREATE TABLE transactions.transactions_saldo (
 ALTER TABLE transactions.transactions_saldo OWNER TO "SisFinance-adm";
 COMMENT ON TABLE transactions.transactions_saldo IS 'Registros individuais de transações financeiras de saldo (movimentações em contas).';
 COMMENT ON COLUMN transactions.transactions_saldo.transactions_saldo_id IS 'Identificador único da transação de saldo (PK, fornecido externamente).';
-COMMENT ON COLUMN transactions.transactions_saldo.transactions_saldo_user_id IS 'Usuário associado à transação (FK para users).';
 COMMENT ON COLUMN transactions.transactions_saldo.transactions_saldo_user_accounts_id IS 'Referência à associação usuário-conta específica afetada pela transação (FK para user_accounts).';
 COMMENT ON COLUMN transactions.transactions_saldo.transactions_saldo_operation IS 'Natureza da operação (Crédito ou Débito).';
 COMMENT ON COLUMN transactions.transactions_saldo.transactions_saldo_proceeding_id IS 'Procedimento/método utilizado na transação (FK para proceedings_saldo).';
@@ -541,7 +535,6 @@ COMMENT ON COLUMN transactions.transactions_saldo.transactions_saldo_last_update
 -- Tabela: internal_transfers
 CREATE TABLE transactions.internal_transfers (
     internal_transfers_id character varying(50) NOT NULL,
-    internal_transfers_user_id character varying(50) NOT NULL,
     internal_transfers_origin_user_account_id character varying(50) NOT NULL,
     internal_transfers_destination_user_account_id character varying(50) NOT NULL,
     internal_transfers_operator_id character varying(50) NOT NULL,
@@ -555,7 +548,6 @@ CREATE TABLE transactions.internal_transfers (
     internal_transfers_receipt_image text,
     internal_transfers_last_update timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT internal_transfers_pkey PRIMARY KEY (internal_transfers_id),
-    CONSTRAINT fk_inttransf_user FOREIGN KEY (internal_transfers_user_id) REFERENCES core.users(users_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
     CONSTRAINT fk_inttransf_origin FOREIGN KEY (internal_transfers_origin_user_account_id) REFERENCES core.user_accounts(user_accounts_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
     CONSTRAINT fk_inttransf_destination FOREIGN KEY (internal_transfers_destination_user_account_id) REFERENCES core.user_accounts(user_accounts_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
     CONSTRAINT fk_inttransf_operator FOREIGN KEY (internal_transfers_operator_id) REFERENCES core.operators(operators_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
@@ -565,7 +557,6 @@ CREATE TABLE transactions.internal_transfers (
 ALTER TABLE transactions.internal_transfers OWNER TO "SisFinance-adm";
 COMMENT ON TABLE transactions.internal_transfers IS 'Registra operações de transferência de fundos entre contas do mesmo usuário, que dispara a criação de duas transações em transactions_saldo.';
 COMMENT ON COLUMN transactions.internal_transfers.internal_transfers_id IS 'Identificador único da operação de transferência (PK, fornecido externamente).';
-COMMENT ON COLUMN transactions.internal_transfers.internal_transfers_user_id IS 'Usuário que realiza a transferência (FK para users).';
 COMMENT ON COLUMN transactions.internal_transfers.internal_transfers_origin_user_account_id IS 'Conta de origem dos fundos para a transferência (FK para user_accounts).';
 COMMENT ON COLUMN transactions.internal_transfers.internal_transfers_destination_user_account_id IS 'Conta de destino dos fundos para a transferência (FK para user_accounts).';
 COMMENT ON COLUMN transactions.internal_transfers.internal_transfers_operator_id IS 'Operador que registrou a transferência (FK para operators).';
@@ -583,12 +574,10 @@ COMMENT ON COLUMN transactions.internal_transfers.internal_transfers_last_update
 CREATE TABLE transactions.creditcard_invoices (
     creditcard_invoices_id character varying(50) NOT NULL,
     creditcard_invoices_user_creditcard_id character varying(50) NOT NULL,
-    creditcard_invoices_user_id character varying(50) NOT NULL,
     creditcard_invoices_creation_datetime timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     creditcard_invoices_opening_date date NOT NULL,
     creditcard_invoices_closing_date date NOT NULL,
     creditcard_invoices_due_date date NOT NULL,
-    creditcard_invoices_statement_period character varying(7) NOT NULL,
     creditcard_invoices_amount numeric(15, 2) NOT NULL DEFAULT 0,
     creditcard_invoices_paid_amount numeric(15, 2) NOT NULL DEFAULT 0,
     creditcard_invoices_payment_date date,
@@ -596,8 +585,7 @@ CREATE TABLE transactions.creditcard_invoices (
     creditcard_invoices_file_url text,
     creditcard_invoices_last_update timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT creditcard_invoices_pkey PRIMARY KEY (creditcard_invoices_id),
-    CONSTRAINT fk_invoice_usercard FOREIGN KEY (creditcard_invoices_user_creditcard_id) REFERENCES core.user_creditcard(user_creditcard_id) ON DELETE CASCADE ON UPDATE NO ACTION,
-    CONSTRAINT uq_invoice_card_period UNIQUE (creditcard_invoices_user_creditcard_id, creditcard_invoices_statement_period)
+    CONSTRAINT fk_invoice_usercard FOREIGN KEY (creditcard_invoices_user_creditcard_id) REFERENCES core.user_creditcard(user_creditcard_id) ON DELETE CASCADE ON UPDATE NO ACTION
 );
 ALTER TABLE transactions.creditcard_invoices OWNER TO "SisFinance-adm";
 COMMENT ON TABLE transactions.creditcard_invoices IS 'Representa cada fatura mensal de um cartão de crédito específico do usuário.';
@@ -607,7 +595,6 @@ COMMENT ON COLUMN transactions.creditcard_invoices.creditcard_invoices_creation_
 COMMENT ON COLUMN transactions.creditcard_invoices.creditcard_invoices_opening_date IS 'Data de início do período de compras desta fatura.';
 COMMENT ON COLUMN transactions.creditcard_invoices.creditcard_invoices_closing_date IS 'Data de fechamento para novas compras desta fatura.';
 COMMENT ON COLUMN transactions.creditcard_invoices.creditcard_invoices_due_date IS 'Data de vencimento para pagamento desta fatura.';
-COMMENT ON COLUMN transactions.creditcard_invoices.creditcard_invoices_statement_period IS 'Período de referência da fatura no formato YYYY-MM (Ex: 2024-01).';
 COMMENT ON COLUMN transactions.creditcard_invoices.creditcard_invoices_amount IS 'Valor total da fatura a ser pago. Inicialmente 0, calculado por processo externo/script.';
 COMMENT ON COLUMN transactions.creditcard_invoices.creditcard_invoices_paid_amount IS 'Valor efetivamente pago desta fatura. Inicialmente 0.';
 COMMENT ON COLUMN transactions.creditcard_invoices.creditcard_invoices_payment_date IS 'Data em que o pagamento (total ou parcial) da fatura foi realizado (opcional).';
@@ -618,7 +605,6 @@ COMMENT ON COLUMN transactions.creditcard_invoices.creditcard_invoices_last_upda
 -- Tabela: recurrence_creditcard
 CREATE TABLE transactions.recurrence_creditcard (
     creditcard_recurrence_id character varying(50) NOT NULL,
-    creditcard_recurrence_user_id character varying(50) NOT NULL,
     creditcard_recurrence_user_card_id character varying(50) NOT NULL,
     creditcard_recurrence_procedure transactions.creditcard_transaction_procedure NOT NULL DEFAULT 'Débito em Fatura',
     creditcard_recurrence_category_id character varying(50) NOT NULL,
@@ -642,7 +628,6 @@ CREATE TABLE transactions.recurrence_creditcard (
     creditcard_recurrence_relevance_ir boolean NOT NULL DEFAULT false,
     creditcard_recurrence_last_update timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT creditcard_recurrence_pkey PRIMARY KEY (creditcard_recurrence_id),
-    CONSTRAINT fk_ccrecur_user FOREIGN KEY (creditcard_recurrence_user_id) REFERENCES core.users(users_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
     CONSTRAINT fk_ccrecur_usercard FOREIGN KEY (creditcard_recurrence_user_card_id) REFERENCES core.user_creditcard(user_creditcard_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
     CONSTRAINT fk_ccrecur_category FOREIGN KEY (creditcard_recurrence_category_id) REFERENCES core.categories(categories_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
     CONSTRAINT fk_ccrecur_operator FOREIGN KEY (creditcard_recurrence_operator_id) REFERENCES core.operators(operators_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
@@ -653,7 +638,6 @@ CREATE TABLE transactions.recurrence_creditcard (
 ALTER TABLE transactions.recurrence_creditcard OWNER TO "SisFinance-adm";
 COMMENT ON TABLE transactions.recurrence_creditcard IS 'Define transações recorrentes que ocorrem diretamente na fatura do cartão de crédito.';
 COMMENT ON COLUMN transactions.recurrence_creditcard.creditcard_recurrence_id IS 'Identificador único da recorrência de cartão (PK, fornecido externamente).';
-COMMENT ON COLUMN transactions.recurrence_creditcard.creditcard_recurrence_user_id IS 'Usuário proprietário desta recorrência de cartão (FK para users).';
 COMMENT ON COLUMN transactions.recurrence_creditcard.creditcard_recurrence_user_card_id IS 'Referência ao cartão específico do usuário afetado (FK para user_creditcard).';
 COMMENT ON COLUMN transactions.recurrence_creditcard.creditcard_recurrence_procedure IS 'Procedimento a ser aplicado na fatura (Crédito ou Débito em Fatura).';
 COMMENT ON COLUMN transactions.recurrence_creditcard.creditcard_recurrence_category_id IS 'Categoria da recorrência (FK para categories).';
@@ -680,8 +664,6 @@ COMMENT ON COLUMN transactions.recurrence_creditcard.creditcard_recurrence_last_
 -- Tabela: creditcard_transactions
 CREATE TABLE transactions.creditcard_transactions (
     creditcard_transactions_id character varying(50) NOT NULL,
-    creditcard_transactions_user_id character varying(50) NOT NULL,
-    creditcard_transactions_user_card_id character varying(50) NOT NULL,
     creditcard_transactions_invoice_id character varying(50),
     creditcard_transactions_procedure transactions.creditcard_transaction_procedure NOT NULL DEFAULT 'Débito em Fatura',
     creditcard_transactions_status transactions.status NOT NULL,
@@ -694,8 +676,6 @@ CREATE TABLE transactions.creditcard_transactions (
     creditcard_transactions_recurrence_id character varying(50),
     creditcard_transactions_schedule_datetime timestamp with time zone,
     creditcard_transactions_implementation_datetime timestamp with time zone NOT NULL,
-    creditcard_transactions_statement_month transactions.month_enum NOT NULL,
-    creditcard_transactions_statement_year integer NOT NULL CHECK (creditcard_transactions_statement_year >= 2020),
     creditcard_transactions_is_installment boolean NOT NULL DEFAULT false,
     creditcard_transactions_installment_count integer NOT NULL DEFAULT 1 CHECK (creditcard_transactions_installment_count >= 1 AND creditcard_transactions_installment_count <= 420),
     creditcard_transactions_base_value numeric(15, 2) NOT NULL,
@@ -708,8 +688,6 @@ CREATE TABLE transactions.creditcard_transactions (
     creditcard_transactions_relevance_ir boolean NOT NULL DEFAULT false,
     creditcard_transactions_last_update timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT creditcard_transactions_pkey PRIMARY KEY (creditcard_transactions_id),
-    CONSTRAINT fk_cctrans_user FOREIGN KEY (creditcard_transactions_user_id) REFERENCES core.users(users_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
-    CONSTRAINT fk_cctrans_usercard FOREIGN KEY (creditcard_transactions_user_card_id) REFERENCES core.user_creditcard(user_creditcard_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
     CONSTRAINT fk_cctrans_invoice FOREIGN KEY (creditcard_transactions_invoice_id) REFERENCES transactions.creditcard_invoices(creditcard_invoices_id) ON DELETE SET NULL ON UPDATE NO ACTION,
     CONSTRAINT fk_cctrans_category FOREIGN KEY (creditcard_transactions_category_id) REFERENCES core.categories(categories_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
     CONSTRAINT fk_cctrans_operator FOREIGN KEY (creditcard_transactions_operator_id) REFERENCES core.operators(operators_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
@@ -720,9 +698,7 @@ CREATE TABLE transactions.creditcard_transactions (
 ALTER TABLE transactions.creditcard_transactions OWNER TO "SisFinance-adm";
 COMMENT ON TABLE transactions.creditcard_transactions IS 'Registra cada movimentação individual (compra, estorno, taxa) realizada com o cartão de crédito.';
 COMMENT ON COLUMN transactions.creditcard_transactions.creditcard_transactions_id IS 'Identificador único da transação de cartão (PK, fornecido externamente).';
-COMMENT ON COLUMN transactions.creditcard_transactions.creditcard_transactions_user_id IS 'Usuário associado à transação (FK para users).';
-COMMENT ON COLUMN transactions.creditcard_transactions.creditcard_transactions_user_card_id IS 'Cartão do usuário utilizado nesta transação (FK para user_creditcard).';
-COMMENT ON COLUMN transactions.creditcard_transactions.creditcard_transactions_invoice_id IS 'Fatura à qual esta transação está associada, se aplicável (FK para creditcard_invoices).';
+COMMENT ON COLUMN transactions.creditcard_transactions.creditcard_transactions_invoice_id IS 'Fatura à qual esta transação está associada (FK para creditcard_invoices).';
 COMMENT ON COLUMN transactions.creditcard_transactions.creditcard_transactions_procedure IS 'Procedimento aplicado na fatura (Crédito ou Débito em Fatura).';
 COMMENT ON COLUMN transactions.creditcard_transactions.creditcard_transactions_status IS 'Status da transação (Efetuado ou Pendente).';
 COMMENT ON COLUMN transactions.creditcard_transactions.creditcard_transactions_category_id IS 'Categoria da transação (FK para categories).';
@@ -734,8 +710,6 @@ COMMENT ON COLUMN transactions.creditcard_transactions.creditcard_transactions_i
 COMMENT ON COLUMN transactions.creditcard_transactions.creditcard_transactions_recurrence_id IS 'Recorrência que gerou esta transação, se aplicável (FK para recurrence_creditcard).';
 COMMENT ON COLUMN transactions.creditcard_transactions.creditcard_transactions_schedule_datetime IS 'Data e hora agendada para transações pendentes (opcional).';
 COMMENT ON COLUMN transactions.creditcard_transactions.creditcard_transactions_implementation_datetime IS 'Data e hora em que a transação foi efetivamente realizada.';
-COMMENT ON COLUMN transactions.creditcard_transactions.creditcard_transactions_statement_month IS 'Mês de competência para esta transação (para faturamento).';
-COMMENT ON COLUMN transactions.creditcard_transactions.creditcard_transactions_statement_year IS 'Ano de competência para esta transação (para faturamento).';
 COMMENT ON COLUMN transactions.creditcard_transactions.creditcard_transactions_is_installment IS 'Indica se é uma compra parcelada. Padrão: FALSE.';
 COMMENT ON COLUMN transactions.creditcard_transactions.creditcard_transactions_installment_count IS 'Número total de parcelas, se aplicável. Padrão: 1.';
 COMMENT ON COLUMN transactions.creditcard_transactions.creditcard_transactions_base_value IS 'Valor principal da transação.';
@@ -754,8 +728,6 @@ CREATE TABLE transactions.creditcard_installments (
     creditcard_installments_transaction_id character varying(50) NOT NULL,
     creditcard_installments_invoice_id character varying(50) NOT NULL,
     creditcard_installments_number integer NOT NULL CHECK (creditcard_installments_number >= 1 AND creditcard_installments_number <= 420),
-    creditcard_installments_statement_month transactions.month_enum NOT NULL,
-    creditcard_installments_statement_year integer NOT NULL CHECK (creditcard_installments_statement_year >= 2020),
     creditcard_installments_observations text,
     creditcard_installments_base_value numeric(15, 2) NOT NULL,
     creditcard_installments_fees_taxes numeric(15, 2) NOT NULL DEFAULT 0,
@@ -774,8 +746,6 @@ COMMENT ON COLUMN transactions.creditcard_installments.creditcard_installments_i
 COMMENT ON COLUMN transactions.creditcard_installments.creditcard_installments_transaction_id IS 'Transação principal à qual esta parcela pertence (FK para creditcard_transactions).';
 COMMENT ON COLUMN transactions.creditcard_installments.creditcard_installments_invoice_id IS 'Fatura à qual esta parcela está associada (FK para creditcard_invoices).';
 COMMENT ON COLUMN transactions.creditcard_installments.creditcard_installments_number IS 'Número sequencial desta parcela (1 a 420).';
-COMMENT ON COLUMN transactions.creditcard_installments.creditcard_installments_statement_month IS 'Mês de competência para esta parcela específica.';
-COMMENT ON COLUMN transactions.creditcard_installments.creditcard_installments_statement_year IS 'Ano de competência para esta parcela específica.';
 COMMENT ON COLUMN transactions.creditcard_installments.creditcard_installments_observations IS 'Observações específicas sobre esta parcela (opcional).';
 COMMENT ON COLUMN transactions.creditcard_installments.creditcard_installments_base_value IS 'Valor principal desta parcela específica.';
 COMMENT ON COLUMN transactions.creditcard_installments.creditcard_installments_fees_taxes IS 'Taxas adicionais específicas desta parcela. Padrão: 0.';
@@ -1008,14 +978,12 @@ ALTER TABLE core.user_creditcard
     VALIDATE CONSTRAINT fk_usercred_payment_account;
 
 ALTER TABLE transactions.recurrence_saldo 
-    VALIDATE CONSTRAINT fk_recurrence_user,
     VALIDATE CONSTRAINT fk_recurrence_user_account,
     VALIDATE CONSTRAINT fk_recurrence_proceeding,
     VALIDATE CONSTRAINT fk_recurrence_category,
     VALIDATE CONSTRAINT fk_recurrence_operator;
 
 ALTER TABLE transactions.transactions_saldo 
-    VALIDATE CONSTRAINT fk_transactions_user,
     VALIDATE CONSTRAINT fk_transactions_user_account,
     VALIDATE CONSTRAINT fk_transactions_proceeding,
     VALIDATE CONSTRAINT fk_transactions_category,
@@ -1023,7 +991,6 @@ ALTER TABLE transactions.transactions_saldo
     VALIDATE CONSTRAINT fk_transactions_recurrence;
 
 ALTER TABLE transactions.internal_transfers 
-    VALIDATE CONSTRAINT fk_inttransf_user,
     VALIDATE CONSTRAINT fk_inttransf_origin,
     VALIDATE CONSTRAINT fk_inttransf_destination,
     VALIDATE CONSTRAINT fk_inttransf_operator;
@@ -1032,14 +999,11 @@ ALTER TABLE transactions.creditcard_invoices
     VALIDATE CONSTRAINT fk_invoice_usercard;
 
 ALTER TABLE transactions.recurrence_creditcard 
-    VALIDATE CONSTRAINT fk_ccrecur_user,
     VALIDATE CONSTRAINT fk_ccrecur_usercard,
     VALIDATE CONSTRAINT fk_ccrecur_category,
     VALIDATE CONSTRAINT fk_ccrecur_operator;
 
 ALTER TABLE transactions.creditcard_transactions 
-    VALIDATE CONSTRAINT fk_cctrans_user,
-    VALIDATE CONSTRAINT fk_cctrans_usercard,
     VALIDATE CONSTRAINT fk_cctrans_invoice,
     VALIDATE CONSTRAINT fk_cctrans_category,
     VALIDATE CONSTRAINT fk_cctrans_operator,
@@ -1060,200 +1024,6 @@ ALTER TABLE transactions.transaction_reports
     VALIDATE CONSTRAINT fk_transactionreports_cat;
 
 ANALYZE;
-
--- =============================================================================
--- CRIAÇÃO DE ÍNDICES ESTRATÉGICOS PARA MELHORAR O DESEMPENHO
--- =============================================================================
-
-CREATE INDEX idx_cctrans_competencia_period 
-ON transactions.creditcard_transactions (creditcard_transactions_statement_year, creditcard_transactions_statement_month, creditcard_transactions_user_id, creditcard_transactions_status);
-COMMENT ON INDEX transactions.idx_cctrans_competencia_period IS 'Otimiza consultas por período de competência (ano/mês) em transações de cartão, incluindo usuário e status para queries complexas.';
-
-CREATE INDEX idx_ccinstall_competencia_period 
-ON transactions.creditcard_installments (creditcard_installments_statement_year, creditcard_installments_statement_month, creditcard_installments_invoice_id);
-COMMENT ON INDEX transactions.idx_ccinstall_competencia_period IS 'Otimiza consultas por período de competência em parcelas de cartão, incluindo referência à fatura.';
-
-CREATE INDEX idx_cctrans_competencia_value 
-ON transactions.creditcard_transactions (creditcard_transactions_statement_year DESC, creditcard_transactions_statement_month DESC, creditcard_transactions_total_effective) 
-WHERE creditcard_transactions_status = 'Efetuado';
-COMMENT ON INDEX transactions.idx_cctrans_competencia_value IS 'Índice parcial para busca de transações efetuadas por competência ordenada decrescente, incluindo valor para análises financeiras.';
-
-CREATE INDEX idx_trans_saldo_balance_calc 
-ON transactions.transactions_saldo (transactions_saldo_user_accounts_id, transactions_saldo_status)
-WHERE transactions_saldo_status = 'Efetuado';
-COMMENT ON INDEX transactions.idx_trans_saldo_balance_calc IS 'Acelera o cálculo de saldo filtrando transações efetivadas por conta de usuário e status.';
-
-CREATE INDEX idx_trans_saldo_monthly 
-ON transactions.transactions_saldo 
-USING BTREE (date_trunc('month', transactions_saldo_implementation_datetime));
-COMMENT ON INDEX transactions.idx_trans_saldo_monthly IS 'Otimiza consultas que analisam transações agrupadas por mês usando a função date_trunc.';
-
-CREATE INDEX idx_invoice_open_status 
-ON transactions.creditcard_invoices (creditcard_invoices_status, creditcard_invoices_due_date)
-WHERE creditcard_invoices_status IN ('Aberta', 'Fechada', 'Vencida');
-COMMENT ON INDEX transactions.idx_invoice_open_status IS 'Acelera a busca de faturas pendentes (Aberta, Fechada ou Vencida) ordenadas por data de vencimento.';
-
-CREATE INDEX idx_category_time_analysis 
-ON transactions.transactions_saldo (transactions_saldo_category_id, date_trunc('month', transactions_saldo_implementation_datetime), transactions_saldo_operation)
-WHERE transactions_saldo_status = 'Efetuado';
-COMMENT ON INDEX transactions.idx_category_time_analysis IS 'Otimiza análises de gastos por categoria ao longo do tempo, facilitando relatórios mensais de despesas efetivadas.';
-
-CREATE INDEX idx_audit_period_table 
-ON auditoria.core_audit_log (date_trunc('day', core_audit_log_timestamp), core_audit_log_table_name, core_audit_log_action);
-COMMENT ON INDEX auditoria.idx_audit_period_table IS 'Melhora a performance de consultas em logs de auditoria quando filtrados por período diário e tipo de operação.';
-
-CREATE INDEX idx_recurrence_due_processing 
-ON transactions.recurrence_saldo (recurrence_saldo_status, recurrence_saldo_first_due_date, recurrence_saldo_frequency)
-WHERE recurrence_saldo_status = 'Ativo';
-COMMENT ON INDEX transactions.idx_recurrence_due_processing IS 'Acelera a identificação de recorrências ativas que precisam ser processadas, ordenadas por data do primeiro vencimento.';
-
-CREATE INDEX IF NOT EXISTS idx_users_status ON core.users (users_status);
-COMMENT ON INDEX core.idx_users_status IS 'Acelera a busca de usuários por status (Ativo, Inativo, Pendente).';
-
-CREATE UNIQUE INDEX IF NOT EXISTS uq_operators_priority_true_per_user
-ON core.operators (operators_user_id)
-WHERE operators_priority IS TRUE;
-COMMENT ON INDEX core.uq_operators_priority_true_per_user IS 'Garante que um usuário possa ter apenas um operador marcado como prioritário.';
-
-CREATE INDEX IF NOT EXISTS idx_operators_user_id ON core.operators (operators_user_id);
-COMMENT ON INDEX core.idx_operators_user_id IS 'Acelera a busca de operadores por usuário.';
-
-CREATE INDEX IF NOT EXISTS idx_user_accounts_user_id ON core.user_accounts (user_accounts_user_id);
-COMMENT ON INDEX core.idx_user_accounts_user_id IS 'Acelera a busca de contas por usuário.';
-
-CREATE INDEX IF NOT EXISTS idx_institution_accounts_institution ON core.institution_accounts (institution_accounts_institution_id);
-COMMENT ON INDEX core.idx_institution_accounts_institution IS 'Acelera a busca de produtos por instituição financeira.';
-
-CREATE INDEX IF NOT EXISTS idx_user_creditcard_user_id ON core.user_creditcard (user_creditcard_user_id);
-COMMENT ON INDEX core.idx_user_creditcard_user_id IS 'Acelera a busca de cartões por usuário.';
-
-CREATE INDEX IF NOT EXISTS idx_user_cc_status ON core.user_creditcard (user_creditcard_status);
-COMMENT ON INDEX core.idx_user_cc_status IS 'Acelera filtros por cartões de usuário ativos/inativos.';
-
-CREATE INDEX IF NOT EXISTS idx_user_cc_payment_account ON core.user_creditcard (user_creditcard_payment_user_account_id);
-COMMENT ON INDEX core.idx_user_cc_payment_account IS 'Acelera busca por cartões de usuário ligados a uma conta de pagamento específica.';
-
-CREATE INDEX IF NOT EXISTS idx_trans_saldo_user_id ON transactions.transactions_saldo (transactions_saldo_user_id);
-COMMENT ON INDEX transactions.idx_trans_saldo_user_id IS 'Acelera a busca de transações por usuário.';
-
-CREATE INDEX IF NOT EXISTS idx_trans_saldo_user_account ON transactions.transactions_saldo (transactions_saldo_user_accounts_id);
-COMMENT ON INDEX transactions.idx_trans_saldo_user_account IS 'Acelera JOINs e filtros pela conta do usuário (essencial para cálculo de saldo).';
-
-CREATE INDEX IF NOT EXISTS idx_trans_saldo_status ON transactions.transactions_saldo (transactions_saldo_status);
-COMMENT ON INDEX transactions.idx_trans_saldo_status IS 'Acelera filtros por status da transação de saldo (ex: Efetuado para saldo).';
-
-CREATE INDEX IF NOT EXISTS idx_trans_saldo_impl_datetime ON transactions.transactions_saldo (transactions_saldo_implementation_datetime);
-COMMENT ON INDEX transactions.idx_trans_saldo_impl_datetime IS 'Acelera filtros e ordenação por data de implementação da transação de saldo.';
-
-CREATE INDEX IF NOT EXISTS idx_trans_saldo_category_id ON transactions.transactions_saldo (transactions_saldo_category_id);
-COMMENT ON INDEX transactions.idx_trans_saldo_category_id IS 'Acelera filtros e agrupamentos por categoria em transações de saldo.';
-
-CREATE INDEX IF NOT EXISTS idx_trans_saldo_operation ON transactions.transactions_saldo (transactions_saldo_operation);
-COMMENT ON INDEX transactions.idx_trans_saldo_operation IS 'Acelera filtros por natureza da operação (Crédito/Débito).';
-
-CREATE INDEX IF NOT EXISTS idx_trans_saldo_recurrence_id ON transactions.transactions_saldo (transactions_saldo_recurrence_id) 
-WHERE transactions_saldo_recurrence_id IS NOT NULL;
-COMMENT ON INDEX transactions.idx_trans_saldo_recurrence_id IS 'Índice parcial para buscar transações de saldo geradas por recorrências específicas.';
-
-CREATE INDEX IF NOT EXISTS idx_recurr_saldo_user_id ON transactions.recurrence_saldo (recurrence_saldo_user_id);
-COMMENT ON INDEX transactions.idx_recurr_saldo_user_id IS 'Acelera a busca de recorrências de saldo por usuário.';
-
-CREATE INDEX IF NOT EXISTS idx_recurr_saldo_user_account_id ON transactions.recurrence_saldo (recurrence_saldo_user_account_id);
-COMMENT ON INDEX transactions.idx_recurr_saldo_user_account_id IS 'Acelera a busca de recorrências de saldo por conta de usuário.';
-
-CREATE INDEX IF NOT EXISTS idx_recurr_saldo_status ON transactions.recurrence_saldo (recurrence_saldo_status);
-COMMENT ON INDEX transactions.idx_recurr_saldo_status IS 'Acelera a busca por recorrências de saldo ativas/inativas.';
-
-CREATE INDEX IF NOT EXISTS idx_cc_invoice_user_id ON transactions.creditcard_invoices (creditcard_invoices_user_id);
-COMMENT ON INDEX transactions.idx_cc_invoice_user_id IS 'Acelera a busca de faturas por usuário.';
-
-CREATE INDEX IF NOT EXISTS idx_cc_invoice_status ON transactions.creditcard_invoices (creditcard_invoices_status);
-COMMENT ON INDEX transactions.idx_cc_invoice_status IS 'Acelera filtros por status da fatura de cartão (Aberta, Paga, etc.).';
-
-CREATE INDEX IF NOT EXISTS idx_cc_invoice_due_date ON transactions.creditcard_invoices (creditcard_invoices_due_date);
-COMMENT ON INDEX transactions.idx_cc_invoice_due_date IS 'Acelera filtros e ordenação por data de vencimento da fatura.';
-
-CREATE INDEX IF NOT EXISTS idx_cctrans_user_id ON transactions.creditcard_transactions (creditcard_transactions_user_id);
-COMMENT ON INDEX transactions.idx_cctrans_user_id IS 'Acelera a busca de transações de cartão por usuário.';
-
-CREATE INDEX IF NOT EXISTS idx_cctrans_user_card ON transactions.creditcard_transactions (creditcard_transactions_user_card_id);
-COMMENT ON INDEX transactions.idx_cctrans_user_card IS 'Acelera busca de transações de cartão por cartão de usuário.';
-
-CREATE INDEX IF NOT EXISTS idx_cctrans_invoice ON transactions.creditcard_transactions (creditcard_transactions_invoice_id)
-WHERE creditcard_transactions_invoice_id IS NOT NULL;
-COMMENT ON INDEX transactions.idx_cctrans_invoice IS 'Índice parcial para buscar transações de cartão por fatura (importante para calcular valor fatura).';
-
-CREATE INDEX IF NOT EXISTS idx_cctrans_impl_datetime ON transactions.creditcard_transactions (creditcard_transactions_implementation_datetime);
-COMMENT ON INDEX transactions.idx_cctrans_impl_datetime IS 'Acelera filtros/ordenação por data da transação de cartão.';
-
-CREATE INDEX IF NOT EXISTS idx_cctrans_statement_period ON transactions.creditcard_transactions 
-(creditcard_transactions_statement_year, creditcard_transactions_statement_month);
-COMMENT ON INDEX transactions.idx_cctrans_statement_period IS 'Acelera filtros/agrupamentos por período da fatura para transações de cartão.';
-
-CREATE INDEX IF NOT EXISTS idx_core_audit_user_id ON auditoria.core_audit_log (core_audit_log_user_id);
-COMMENT ON INDEX auditoria.idx_core_audit_user_id IS 'Acelera a busca de logs por usuário no schema core.';
-
-CREATE INDEX IF NOT EXISTS idx_core_audit_timestamp ON auditoria.core_audit_log (core_audit_log_timestamp);
-COMMENT ON INDEX auditoria.idx_core_audit_timestamp IS 'Acelera a busca de logs por data/hora no schema core.';
-
-CREATE INDEX IF NOT EXISTS idx_core_audit_table ON auditoria.core_audit_log (core_audit_log_table_name);
-COMMENT ON INDEX auditoria.idx_core_audit_table IS 'Acelera a busca de logs por tabela no schema core.';
-
-CREATE INDEX IF NOT EXISTS idx_core_audit_action ON auditoria.core_audit_log (core_audit_log_action);
-COMMENT ON INDEX auditoria.idx_core_audit_action IS 'Acelera a busca de logs por tipo de ação no schema core.';
-
-CREATE INDEX IF NOT EXISTS idx_trans_audit_user_id ON auditoria.transactions_audit_log (transactions_audit_log_user_id);
-COMMENT ON INDEX auditoria.idx_trans_audit_user_id IS 'Acelera a busca de logs por usuário no schema transactions.';
-
-CREATE INDEX IF NOT EXISTS idx_trans_audit_timestamp ON auditoria.transactions_audit_log (transactions_audit_log_timestamp);
-COMMENT ON INDEX auditoria.idx_trans_audit_timestamp IS 'Acelera a busca de logs por data/hora no schema transactions.';
-
-CREATE INDEX IF NOT EXISTS idx_trans_audit_table ON auditoria.transactions_audit_log (transactions_audit_log_table_name);
-COMMENT ON INDEX auditoria.idx_trans_audit_table IS 'Acelera a busca de logs por tabela no schema transactions.';
-
-CREATE INDEX IF NOT EXISTS idx_trans_audit_action ON auditoria.transactions_audit_log (transactions_audit_log_action);
-COMMENT ON INDEX auditoria.idx_trans_audit_action IS 'Acelera a busca de logs por tipo de ação no schema transactions.';
-
-CREATE INDEX IF NOT EXISTS idx_transaction_reports_user_id ON transactions.transaction_reports (report_user_id);
-COMMENT ON INDEX transactions.idx_transaction_reports_user_id IS 'Acelera a busca de relatórios por usuário proprietário.';
-
-CREATE INDEX IF NOT EXISTS idx_transaction_reports_type ON transactions.transaction_reports (report_type);
-COMMENT ON INDEX transactions.idx_transaction_reports_type IS 'Acelera filtros por tipo de relatório (Cartão de Crédito, Saldo, ambos).';
-
-CREATE INDEX IF NOT EXISTS idx_transaction_reports_time_choice ON transactions.transaction_reports (report_time_choice);
-COMMENT ON INDEX transactions.idx_transaction_reports_time_choice IS 'Acelera filtros por escolha temporal do relatório.';
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_transaction_reports_auto_generate ON transactions.transaction_reports (report_auto_generate)
-WHERE report_auto_generate IS TRUE;
-COMMENT ON INDEX transactions.idx_transaction_reports_auto_generate IS 'Índice parcial para acelerar busca de relatórios com geração automática habilitada.';
-
-CREATE INDEX IF NOT EXISTS idx_transaction_reports_recurring_active ON transactions.transaction_reports (report_recurring_status)
-WHERE report_recurring_status = 'Ativado';
-COMMENT ON INDEX transactions.idx_transaction_reports_recurring_active IS 'Índice parcial para acelerar busca de relatórios com recorrência ativa.';
-
-CREATE INDEX IF NOT EXISTS idx_transaction_reports_user_type ON transactions.transaction_reports (report_user_id, report_type);
-COMMENT ON INDEX transactions.idx_transaction_reports_user_type IS 'Otimiza consultas de relatórios por usuário e tipo específico.';
-
-CREATE INDEX IF NOT EXISTS idx_transaction_reports_user_auto ON transactions.transaction_reports (report_user_id, report_auto_generate);
-COMMENT ON INDEX transactions.idx_transaction_reports_user_auto IS 'Otimiza busca de relatórios automáticos por usuário específico.';
-
-CREATE INDEX IF NOT EXISTS idx_transaction_reports_generation_date ON transactions.transaction_reports (report_generation_datetime);
-COMMENT ON INDEX transactions.idx_transaction_reports_generation_date IS 'Acelera ordenação por data de geração do relatório.';
-
-CREATE INDEX IF NOT EXISTS idx_transaction_reports_send_to ON transactions.transaction_reports (report_send_to_operator_id);
-COMMENT ON INDEX transactions.idx_transaction_reports_send_to IS 'Acelera busca de relatórios por operador destinatário.';
-
-CREATE INDEX IF NOT EXISTS idx_transaction_reports_account ON transactions.transaction_reports (report_account_id)
-WHERE report_account_id IS NOT NULL;
-COMMENT ON INDEX transactions.idx_transaction_reports_account IS 'Índice parcial para acelerar busca de relatórios filtrados por conta específica.';
-
-CREATE INDEX IF NOT EXISTS idx_transaction_reports_creditcard ON transactions.transaction_reports (report_user_creditcard_id)
-WHERE report_user_creditcard_id IS NOT NULL;
-COMMENT ON INDEX transactions.idx_transaction_reports_creditcard IS 'Índice parcial para acelerar busca de relatórios filtrados por cartão específico.';
-
-CREATE INDEX IF NOT EXISTS idx_transaction_reports_operator ON transactions.transaction_reports (report_operator_id)
-WHERE report_operator_id IS NOT NULL;
-COMMENT ON INDEX transactions.idx_transaction_reports_operator IS 'Índice parcial para acelerar busca de relatórios filtrados por operador específico.';
 
 -- =============================================================================
 -- CRIAÇÃO DE TRIGGERS DE IMUTABILIDADE DE PRIMARY KEY
@@ -1576,7 +1346,7 @@ BEGIN
         v_credit_implementation_datetime := NEW.internal_transfers_implementation_datetime;
 
         INSERT INTO transactions.transactions_saldo (
-            transactions_saldo_id, transactions_saldo_user_id, transactions_saldo_user_accounts_id,
+            transactions_saldo_id, transactions_saldo_user_accounts_id,
             transactions_saldo_operation, transactions_saldo_proceeding_id, transactions_saldo_status,
             transactions_saldo_category_id, transactions_saldo_operator_id, transactions_saldo_description,
             transactions_saldo_observations, transactions_saldo_registration_datetime, transactions_saldo_is_recurrence,
@@ -1584,13 +1354,13 @@ BEGIN
             transactions_saldo_base_value, transactions_saldo_fees_taxes, transactions_saldo_receipt_image,
             transactions_saldo_relevance_ir, transactions_saldo_last_update
         ) VALUES (
-            v_debit_txn_id, NEW.internal_transfers_user_id, NEW.internal_transfers_origin_user_account_id,
+            v_debit_txn_id, NEW.internal_transfers_origin_user_account_id,
             'Débito'::core.operation, v_proc_id, 'Efetuado'::transactions.status, v_cat_id, NEW.internal_transfers_operator_id, v_description,
             NEW.internal_transfers_observations, NEW.internal_transfers_registration_datetime, FALSE, NULL, NULL, NEW.internal_transfers_implementation_datetime,
             NEW.internal_transfers_base_value, NEW.internal_transfers_fees_taxes, NEW.internal_transfers_receipt_image, FALSE, NEW.internal_transfers_last_update
         );
         INSERT INTO transactions.transactions_saldo (
-            transactions_saldo_id, transactions_saldo_user_id, transactions_saldo_user_accounts_id,
+            transactions_saldo_id, transactions_saldo_user_accounts_id,
             transactions_saldo_operation, transactions_saldo_proceeding_id, transactions_saldo_status,
             transactions_saldo_category_id, transactions_saldo_operator_id, transactions_saldo_description,
             transactions_saldo_observations, transactions_saldo_registration_datetime, transactions_saldo_is_recurrence,
@@ -1598,7 +1368,7 @@ BEGIN
             transactions_saldo_base_value, transactions_saldo_fees_taxes, transactions_saldo_receipt_image,
             transactions_saldo_relevance_ir, transactions_saldo_last_update
         ) VALUES (
-            v_credit_txn_id, NEW.internal_transfers_user_id, NEW.internal_transfers_destination_user_account_id,
+            v_credit_txn_id, NEW.internal_transfers_destination_user_account_id,
             'Crédito'::core.operation, v_proc_id, 'Efetuado'::transactions.status, v_cat_id, NEW.internal_transfers_operator_id, v_description,
             NEW.internal_transfers_observations, v_credit_registration_datetime, FALSE, NULL, NULL, v_credit_implementation_datetime,
             NEW.internal_transfers_base_value, 0, NEW.internal_transfers_receipt_image, FALSE, NEW.internal_transfers_last_update
@@ -1610,7 +1380,6 @@ BEGIN
         v_credit_implementation_datetime := NEW.internal_transfers_implementation_datetime + INTERVAL '1 millisecond';
 
         UPDATE transactions.transactions_saldo SET
-            transactions_saldo_user_id = NEW.internal_transfers_user_id,
             transactions_saldo_user_accounts_id = NEW.internal_transfers_origin_user_account_id,
             transactions_saldo_operator_id = NEW.internal_transfers_operator_id, transactions_saldo_description = v_description,
             transactions_saldo_observations = NEW.internal_transfers_observations, transactions_saldo_registration_datetime = NEW.internal_transfers_registration_datetime,
@@ -1621,7 +1390,6 @@ BEGIN
         WHERE transactions_saldo_id = v_debit_txn_id;
 
         UPDATE transactions.transactions_saldo SET
-            transactions_saldo_user_id = NEW.internal_transfers_user_id,
             transactions_saldo_user_accounts_id = NEW.internal_transfers_destination_user_account_id,
             transactions_saldo_operator_id = NEW.internal_transfers_operator_id, transactions_saldo_description = v_description,
             transactions_saldo_observations = NEW.internal_transfers_observations, transactions_saldo_registration_datetime = v_credit_registration_datetime,
@@ -1952,50 +1720,49 @@ COMMENT ON VIEW transactions.view_month_creditcard_transactions IS 'Exibe todas 
 -- View para visualização de transações com saldo realizadas por procedimento no mês atual.
 CREATE OR REPLACE VIEW transactions.view_current_month_proceeding_totals AS
 SELECT 
-    ts.transactions_saldo_user_id AS user_id,
+    ua.user_accounts_user_id AS user_id,
     ps.proceedings_name AS proceeding_name,
     ps.proceedings_id AS proceeding_id,
     SUM(ts.transactions_saldo_total_effective) AS total_amount,
     COUNT(ts.transactions_saldo_id) AS transaction_count
 FROM 
     transactions.transactions_saldo ts
+    JOIN core.user_accounts ua ON ts.transactions_saldo_user_accounts_id = ua.user_accounts_id
     JOIN core.proceedings_saldo ps ON ts.transactions_saldo_proceeding_id = ps.proceedings_id
 WHERE 
     ts.transactions_saldo_status = 'Efetuado'
     AND ts.transactions_saldo_implementation_datetime >= date_trunc('month', CURRENT_DATE)
     AND ts.transactions_saldo_implementation_datetime < date_trunc('month', CURRENT_DATE + INTERVAL '1 month')
 GROUP BY 
-    ts.transactions_saldo_user_id, ps.proceedings_id, ps.proceedings_name;
-
+    ua.user_accounts_user_id, ps.proceedings_id, ps.proceedings_name;
 ALTER VIEW transactions.view_current_month_proceeding_totals OWNER TO "SisFinance-adm";
 COMMENT ON VIEW transactions.view_current_month_proceeding_totals IS 'Exibe a soma dos valores de transações de saldo do mês atual, agrupadas por usuário e procedimento.';
 
 -- View para visualização de transações com saldo realizadas por procedimento no próximo mês.
 CREATE OR REPLACE VIEW transactions.view_next_month_proceeding_totals AS
 SELECT 
-    ts.transactions_saldo_user_id AS user_id,
+    ua.user_accounts_user_id AS user_id,
     ps.proceedings_name AS proceeding_name,
     ps.proceedings_id AS proceeding_id,
     SUM(ts.transactions_saldo_total_effective) AS total_amount,
     COUNT(ts.transactions_saldo_id) AS transaction_count
 FROM 
     transactions.transactions_saldo ts
-    JOIN core.users u ON ts.transactions_saldo_user_id = u.users_id
+    JOIN core.user_accounts ua ON ts.transactions_saldo_user_accounts_id = ua.user_accounts_id
     JOIN core.proceedings_saldo ps ON ts.transactions_saldo_proceeding_id = ps.proceedings_id
 WHERE 
     ts.transactions_saldo_status = 'Efetuado'
     AND ts.transactions_saldo_implementation_datetime >= date_trunc('month', CURRENT_DATE + INTERVAL '1 month')
     AND ts.transactions_saldo_implementation_datetime < date_trunc('month', CURRENT_DATE + INTERVAL '2 month')
 GROUP BY 
-    ts.transactions_saldo_user_id, ps.proceedings_id, ps.proceedings_name;
-
+    ua.user_accounts_user_id, ps.proceedings_id, ps.proceedings_name;
 ALTER VIEW transactions.view_next_month_proceeding_totals OWNER TO "SisFinance-adm";
 COMMENT ON VIEW transactions.view_next_month_proceeding_totals IS 'Exibe a soma dos valores de transações de saldo do próximo mês, agrupadas por usuário e procedimento.';
 
 -- View para visualização de transações com saldo por procedimento realizadas no total.
 CREATE OR REPLACE VIEW transactions.view_all_time_proceeding_totals AS
 SELECT 
-    ts.transactions_saldo_user_id AS user_id,
+    ua.user_accounts_user_id AS user_id,
     ps.proceedings_name AS proceeding_name,
     ps.proceedings_id AS proceeding_id,
     SUM(ts.transactions_saldo_total_effective) AS total_amount,
@@ -2004,13 +1771,12 @@ SELECT
     MAX(ts.transactions_saldo_implementation_datetime) AS last_transaction_date
 FROM 
     transactions.transactions_saldo ts
-    JOIN core.users u ON ts.transactions_saldo_user_id = u.users_id
+    JOIN core.user_accounts ua ON ts.transactions_saldo_user_accounts_id = ua.user_accounts_id
     JOIN core.proceedings_saldo ps ON ts.transactions_saldo_proceeding_id = ps.proceedings_id
 WHERE 
     ts.transactions_saldo_status = 'Efetuado'
 GROUP BY 
-    ts.transactions_saldo_user_id, ps.proceedings_id, ps.proceedings_name;
-
+    ua.user_accounts_user_id, ps.proceedings_id, ps.proceedings_name;
 ALTER VIEW transactions.view_all_time_proceeding_totals OWNER TO "SisFinance-adm";
 COMMENT ON VIEW transactions.view_all_time_proceeding_totals IS 'Exibe a soma total dos valores de transações de saldo de todos os tempos, agrupadas por usuário e procedimento.';
 
@@ -2018,24 +1784,25 @@ COMMENT ON VIEW transactions.view_all_time_proceeding_totals IS 'Exibe a soma to
 CREATE OR REPLACE VIEW transactions.view_current_month_category_totals AS
 WITH saldo_totals AS (
     SELECT 
-        ts.transactions_saldo_user_id AS user_id,
+        ua.user_accounts_user_id AS user_id,
         c.categories_id AS category_id,
         c.categories_name AS category_name,
         SUM(ts.transactions_saldo_total_effective) AS saldo_amount,
         COUNT(ts.transactions_saldo_id) AS saldo_count
     FROM 
         transactions.transactions_saldo ts
+        JOIN core.user_accounts ua ON ts.transactions_saldo_user_accounts_id = ua.user_accounts_id
         JOIN core.categories c ON ts.transactions_saldo_category_id = c.categories_id
     WHERE 
         ts.transactions_saldo_status = 'Efetuado'
         AND ts.transactions_saldo_implementation_datetime >= date_trunc('month', CURRENT_DATE)
         AND ts.transactions_saldo_implementation_datetime < date_trunc('month', CURRENT_DATE + INTERVAL '1 month')
     GROUP BY 
-        ts.transactions_saldo_user_id, c.categories_id, c.categories_name
+        ua.user_accounts_user_id, c.categories_id, c.categories_name
 ),
 card_totals AS (
     SELECT 
-        ct.creditcard_transactions_user_id AS user_id,
+        uc.user_creditcard_user_id AS user_id,
         c.categories_id AS category_id,
         c.categories_name AS category_name,
         SUM(CASE 
@@ -2045,18 +1812,20 @@ card_totals AS (
         COUNT(CASE WHEN ct.creditcard_transactions_is_installment = FALSE THEN 1 ELSE NULL END) AS card_count
     FROM 
         transactions.creditcard_transactions ct
+        JOIN transactions.creditcard_invoices inv ON ct.creditcard_transactions_invoice_id = inv.creditcard_invoices_id
+        JOIN core.user_creditcard uc ON inv.creditcard_invoices_user_creditcard_id = uc.user_creditcard_id
         JOIN core.categories c ON ct.creditcard_transactions_category_id = c.categories_id
     WHERE 
         ct.creditcard_transactions_status = 'Efetuado'
         AND ct.creditcard_transactions_implementation_datetime >= date_trunc('month', CURRENT_DATE)
         AND ct.creditcard_transactions_implementation_datetime < date_trunc('month', CURRENT_DATE + INTERVAL '1 month')
     GROUP BY 
-        ct.creditcard_transactions_user_id, c.categories_id, c.categories_name
+        uc.user_creditcard_user_id, c.categories_id, c.categories_name
     
     UNION ALL
     
     SELECT 
-        ct.creditcard_transactions_user_id AS user_id,
+        uc.user_creditcard_user_id AS user_id,
         c.categories_id AS category_id,
         c.categories_name AS category_name,
         SUM(ci.creditcard_installments_total_effective) AS card_amount,
@@ -2064,6 +1833,8 @@ card_totals AS (
     FROM 
         transactions.creditcard_installments ci
         JOIN transactions.creditcard_transactions ct ON ci.creditcard_installments_transaction_id = ct.creditcard_transactions_id
+        JOIN transactions.creditcard_invoices inv ON ci.creditcard_installments_invoice_id = inv.creditcard_invoices_id
+        JOIN core.user_creditcard uc ON inv.creditcard_invoices_user_creditcard_id = uc.user_creditcard_id
         JOIN core.categories c ON ct.creditcard_transactions_category_id = c.categories_id
     WHERE 
         ct.creditcard_transactions_status = 'Efetuado'
@@ -2072,7 +1843,7 @@ card_totals AS (
         AND ct.creditcard_transactions_implementation_datetime >= date_trunc('month', CURRENT_DATE)
         AND ct.creditcard_transactions_implementation_datetime < date_trunc('month', CURRENT_DATE + INTERVAL '1 month')
     GROUP BY 
-        ct.creditcard_transactions_user_id, c.categories_id, c.categories_name
+        uc.user_creditcard_user_id, c.categories_id, c.categories_name
 ),
 combined_card_totals AS (
     SELECT
@@ -2098,7 +1869,6 @@ SELECT
 FROM 
     saldo_totals s
     FULL OUTER JOIN combined_card_totals c ON s.user_id = c.user_id AND s.category_id = c.category_id;
-
 ALTER VIEW transactions.view_current_month_category_totals OWNER TO "SisFinance-adm";
 COMMENT ON VIEW transactions.view_current_month_category_totals IS 'Exibe a soma dos valores de transações de saldo e cartão de crédito do mês atual, agrupadas por categoria e usuário.';
 
@@ -2106,24 +1876,25 @@ COMMENT ON VIEW transactions.view_current_month_category_totals IS 'Exibe a soma
 CREATE OR REPLACE VIEW transactions.view_next_month_category_totals AS
 WITH saldo_totals AS (
     SELECT 
-        ts.transactions_saldo_user_id AS user_id,
+        ua.user_accounts_user_id AS user_id,
         c.categories_id AS category_id,
         c.categories_name AS category_name,
         SUM(ts.transactions_saldo_total_effective) AS saldo_amount,
         COUNT(ts.transactions_saldo_id) AS saldo_count
     FROM 
         transactions.transactions_saldo ts
+        JOIN core.user_accounts ua ON ts.transactions_saldo_user_accounts_id = ua.user_accounts_id
         JOIN core.categories c ON ts.transactions_saldo_category_id = c.categories_id
     WHERE 
         ts.transactions_saldo_status = 'Efetuado'
         AND ts.transactions_saldo_implementation_datetime >= date_trunc('month', CURRENT_DATE + INTERVAL '1 month')
         AND ts.transactions_saldo_implementation_datetime < date_trunc('month', CURRENT_DATE + INTERVAL '2 month')
     GROUP BY 
-        ts.transactions_saldo_user_id, c.categories_id, c.categories_name
+        ua.user_accounts_user_id, c.categories_id, c.categories_name
 ),
 card_totals AS (
     SELECT 
-        ct.creditcard_transactions_user_id AS user_id,
+        uc.user_creditcard_user_id AS user_id,
         c.categories_id AS category_id,
         c.categories_name AS category_name,
         SUM(CASE 
@@ -2133,18 +1904,20 @@ card_totals AS (
         COUNT(CASE WHEN ct.creditcard_transactions_is_installment = FALSE THEN 1 ELSE NULL END) AS card_count
     FROM 
         transactions.creditcard_transactions ct
+        JOIN transactions.creditcard_invoices inv ON ct.creditcard_transactions_invoice_id = inv.creditcard_invoices_id
+        JOIN core.user_creditcard uc ON inv.creditcard_invoices_user_creditcard_id = uc.user_creditcard_id
         JOIN core.categories c ON ct.creditcard_transactions_category_id = c.categories_id
     WHERE 
         ct.creditcard_transactions_status = 'Efetuado'
         AND ct.creditcard_transactions_implementation_datetime >= date_trunc('month', CURRENT_DATE + INTERVAL '1 month')
         AND ct.creditcard_transactions_implementation_datetime < date_trunc('month', CURRENT_DATE + INTERVAL '2 month')
     GROUP BY 
-        ct.creditcard_transactions_user_id, c.categories_id, c.categories_name
+        uc.user_creditcard_user_id, c.categories_id, c.categories_name
     
     UNION ALL
     
     SELECT 
-        ct.creditcard_transactions_user_id AS user_id,
+        uc.user_creditcard_user_id AS user_id,
         c.categories_id AS category_id,
         c.categories_name AS category_name,
         SUM(ci.creditcard_installments_total_effective) AS card_amount,
@@ -2153,6 +1926,7 @@ card_totals AS (
         transactions.creditcard_installments ci
         JOIN transactions.creditcard_transactions ct ON ci.creditcard_installments_transaction_id = ct.creditcard_transactions_id
         JOIN transactions.creditcard_invoices inv ON ci.creditcard_installments_invoice_id = inv.creditcard_invoices_id
+        JOIN core.user_creditcard uc ON inv.creditcard_invoices_user_creditcard_id = uc.user_creditcard_id
         JOIN core.categories c ON ct.creditcard_transactions_category_id = c.categories_id
     WHERE 
         ct.creditcard_transactions_status = 'Efetuado'
@@ -2160,7 +1934,7 @@ card_totals AS (
         AND inv.creditcard_invoices_due_date >= date_trunc('month', CURRENT_DATE + INTERVAL '1 month')
         AND inv.creditcard_invoices_due_date < date_trunc('month', CURRENT_DATE + INTERVAL '2 month')
     GROUP BY 
-        ct.creditcard_transactions_user_id, c.categories_id, c.categories_name
+        uc.user_creditcard_user_id, c.categories_id, c.categories_name
 ),
 combined_card_totals AS (
     SELECT
@@ -2193,7 +1967,7 @@ COMMENT ON VIEW transactions.view_next_month_category_totals IS 'Exibe a soma do
 CREATE OR REPLACE VIEW transactions.view_all_time_category_totals AS
 WITH saldo_totals AS (
     SELECT 
-        ts.transactions_saldo_user_id AS user_id,
+        ua.user_accounts_user_id AS user_id,
         c.categories_id AS category_id,
         c.categories_name AS category_name,
         SUM(ts.transactions_saldo_total_effective) AS saldo_amount,
@@ -2202,15 +1976,16 @@ WITH saldo_totals AS (
         MAX(ts.transactions_saldo_implementation_datetime) AS last_saldo_date
     FROM 
         transactions.transactions_saldo ts
+        JOIN core.user_accounts ua ON ts.transactions_saldo_user_accounts_id = ua.user_accounts_id
         JOIN core.categories c ON ts.transactions_saldo_category_id = c.categories_id
     WHERE 
         ts.transactions_saldo_status = 'Efetuado'
     GROUP BY 
-        ts.transactions_saldo_user_id, c.categories_id, c.categories_name
+        ua.user_accounts_user_id, c.categories_id, c.categories_name
 ),
 card_totals AS (
     SELECT 
-        ct.creditcard_transactions_user_id AS user_id,
+        uc.user_creditcard_user_id AS user_id,
         c.categories_id AS category_id,
         c.categories_name AS category_name,
         SUM(ct.creditcard_transactions_total_effective) AS card_amount,
@@ -2219,11 +1994,13 @@ card_totals AS (
         MAX(ct.creditcard_transactions_implementation_datetime) AS last_card_date
     FROM 
         transactions.creditcard_transactions ct
+        JOIN transactions.creditcard_invoices inv ON ct.creditcard_transactions_invoice_id = inv.creditcard_invoices_id
+        JOIN core.user_creditcard uc ON inv.creditcard_invoices_user_creditcard_id = uc.user_creditcard_id
         JOIN core.categories c ON ct.creditcard_transactions_category_id = c.categories_id
     WHERE 
         ct.creditcard_transactions_status = 'Efetuado'
     GROUP BY 
-        ct.creditcard_transactions_user_id, c.categories_id, c.categories_name
+        uc.user_creditcard_user_id, c.categories_id, c.categories_name
 )
 SELECT 
     COALESCE(s.user_id, c.user_id) AS user_id,
@@ -2245,6 +2022,5 @@ SELECT
 FROM 
     saldo_totals s
     FULL OUTER JOIN card_totals c ON s.user_id = c.user_id AND s.category_id = c.category_id;
-
 ALTER VIEW transactions.view_all_time_category_totals OWNER TO "SisFinance-adm";
 COMMENT ON VIEW transactions.view_all_time_category_totals IS 'Exibe a soma total dos valores de transações de saldo e cartão de crédito de todos os tempos, agrupadas por categoria e usuário. Inclui datas da primeira e última transação.';
