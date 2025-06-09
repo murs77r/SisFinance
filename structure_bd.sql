@@ -1650,7 +1650,7 @@ SELECT
     u.users_id,
     fi.financial_institutions_name AS bank_name,
     fi.financial_institutions_id AS bank_id,
-    at.account_types_name AS account_type, -- CORREÇÃO AQUI
+    at.account_types_name AS account_type, 
     ua.user_accounts_agency AS agency,
     ua.user_accounts_number AS account_number,
     COALESCE(b.balance, 0.00) AS current_balance
