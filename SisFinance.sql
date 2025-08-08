@@ -376,20 +376,20 @@ CREATE TABLE essencial.moedas (
     valor_atual numeric(15, 6) NOT NULL DEFAULT 0,
     datahora_criacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     datahora_atualizacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT moedas_id_pk PRIMARY KEY (currencies_id),
-    CONSTRAINT moedas_verificar_valor_positivo CHECK (currencies_value >= 0),
-    CONSTRAINT moedas_verificar_formato_iso CHECK (currencies_iso ~ '^[A-Z]{3}$')
+    CONSTRAINT moedas_id_pk PRIMARY KEY (id),
+    CONSTRAINT moedas_verificar_valor_positivo CHECK (valor_atual >= 0),
+    CONSTRAINT moedas_verificar_formato_iso CHECK (iso ~ '^[A-Z]{3}$')
 );
 COMMENT ON TABLE essencial.moedas IS 'Catálogo das moedas disponíveis no sistema com suas respectivas taxas de câmbio em relação ao BRL.';
 COMMENT ON COLUMN essencial.moedas.id IS 'Identificador único da moeda (PK, fornecido externamente).';
 COMMENT ON COLUMN essencial.moedas.iso IS 'Código ISO 4217 da moeda (3 caracteres, único).';
 COMMENT ON COLUMN essencial.moedas.nome IS 'Nome completo da moeda (único).';
-COMMENT ON COLUMN essencial.moedas.valor IS 'Valor da moeda em relação ao BRL (fornecido externamente).';
+COMMENT ON COLUMN essencial.moedas.valor_atual IS 'Valor da moeda em relação ao BRL (fornecido externamente).';
 COMMENT ON COLUMN essencial.moedas.datahora_criacao IS 'Data e hora exatas (UTC) em que o registro foi criado.';
 COMMENT ON COLUMN essencial.moedas.datahora_atualizacao IS 'Data e hora exatas (UTC) da última modificação manual neste registro.';
 
-INSERT INTO essencial.moeda (id, iso, nome, valor_atual) 
-VALUES ('1', 'BRL', 'Real', 1.000000);
+INSERT INTO essencial.moedas (id, iso, nome, valor_atual) 
+    VALUES ('1', 'BRL', 'Real', 1.000000);
 
 -- Operacionalização da tabela 'historico_cambio_moedas'
 
@@ -400,9 +400,9 @@ CREATE TABLE essencial.historico_cambio_moedas (
     fonte character varying(100) NULL,
     datahora_criacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     datahora_atualizacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT historico_cambio_moedas_pk PRIMARY KEY (historico_cambio_moedas_id),
+    CONSTRAINT historico_cambio_moedas_pk PRIMARY KEY (id),
     CONSTRAINT historico_cambio_moedas_fk_moedas FOREIGN KEY (id_moeda) REFERENCES essencial.moedas(id) ON DELETE RESTRICT ON UPDATE NO ACTION,
-    CONSTRAINT historico_cambio_moedas_verificar_valor_positivo CHECK (historico_cambio_moedas_rate > 0)
+    CONSTRAINT historico_cambio_moedas_verificar_valor_positivo CHECK (valor > 0)
 );
 COMMENT ON TABLE essencial.historico_cambio_moedas IS 'Histórico das taxas de câmbio das moedas, permitindo rastreamento temporal das variações.';
 COMMENT ON COLUMN essencial.historico_cambio_moedas.id IS 'Identificador único do registro histórico (PK, fornecido externamente).';
@@ -420,7 +420,7 @@ CREATE TABLE essencial.usuario_conta_moeda (
     id_moeda character varying(50) NOT NULL,
     datahora_criacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     datahora_atualizacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT usuario_conta_moeda_pk PRIMARY KEY (usuario_conta_moeda_id),
+    CONSTRAINT usuario_conta_moeda_pk PRIMARY KEY (id),
     CONSTRAINT usuario_conta_moeda_fk_usuario_conta FOREIGN KEY (id_usuario_conta) REFERENCES essencial.usuario_contas(id) ON DELETE RESTRICT ON UPDATE NO ACTION,
     CONSTRAINT usuario_conta_moeda_fk_moedas FOREIGN KEY (id_moeda) REFERENCES essencial.moedas(id) ON DELETE RESTRICT ON UPDATE NO ACTION,
     CONSTRAINT historico_cambio_moedas_unique_moedas_conta UNIQUE (id_usuario_conta, id_moeda)
@@ -429,7 +429,6 @@ COMMENT ON TABLE essencial.usuario_conta_moeda IS 'Associação entre contas de 
 COMMENT ON COLUMN essencial.usuario_conta_moeda.id IS 'Identificador único da associação (PK, fornecido externamente).';
 COMMENT ON COLUMN essencial.usuario_conta_moeda.id_usuario_conta IS 'Referência à conta do usuário (FK para usuario_contas).';
 COMMENT ON COLUMN essencial.usuario_conta_moeda.id_moeda IS 'Referência à moeda (FK para moedas).';
-COMMENT ON COLUMN essencial.usuario_conta_moeda.usuario_conta_moeda_last_update IS 'Data e hora da última atualização do registro.';
 COMMENT ON COLUMN essencial.usuario_conta_moeda.datahora_criacao IS 'Data e hora exatas (UTC) em que o registro foi criado.';
 COMMENT ON COLUMN essencial.usuario_conta_moeda.datahora_atualizacao IS 'Data e hora exatas (UTC) da última modificação manual neste registro.';
 
@@ -506,10 +505,13 @@ COMMENT ON COLUMN transacional.transacoes_recorrentes_saldo.datahora_atualizacao
 
 -- Operacionalização da tabela 'transacoes_recorrentes_saldo_valores'
 
+CREATE TYPE transacional.categoria_valores AS ENUM ('Base','Imposto','Desconto','Taxa Diversa','Juros','Multa','Reembolso','Seguro','Acréscimo','Retenção','Serviço','Bônus','Antecipação','Estorno');
+
 CREATE TABLE transacional.transacoes_recorrentes_saldo_valores (
     id character varying(50) NOT NULL,
     id_transacoes_recorrentes_saldo character varying(50) NOT NULL,
     operacao transacional.operacao NOT NULL,
+    categoria transacional.categoria_valores NOT NULL DEFAULT 'Base',
     observacoes text,
     valor numeric(15, 2) NOT NULL,
     CONSTRAINT transacoes_recorrentes_saldo_valores_id_pk PRIMARY KEY (id),
@@ -604,6 +606,7 @@ CREATE TABLE transacional.transacoes_saldo_valores (
     id_transacoes_saldo character varying(50) NOT NULL,
     operacao transacional.operacao NOT NULL,
     data_efetivacao timestamp with time zone NOT NULL,
+    categoria transacional.categoria_valores NOT NULL DEFAULT 'Base',
     observacoes text,
     valor numeric(15, 2) NOT NULL,
     CONSTRAINT transacoes_saldo_valores_id_pk PRIMARY KEY (id),
@@ -706,6 +709,7 @@ CREATE TABLE transacional.transferencias_internas_valores (
     id_transferencias_internas character varying(50) NOT NULL,
     operacao transacional.operacao NOT NULL,
     data_efetivacao timestamp with time zone NOT NULL,
+    categoria transacional.categoria_valores NOT NULL DEFAULT 'Base',
     observacoes text,
     valor numeric(15, 2) NOT NULL,
     CONSTRAINT transferencias_internas_valores_id_pk PRIMARY KEY (id),
@@ -918,7 +922,7 @@ CREATE TABLE transacional.transacoes_recorrentes_cartao_credito (
     datahora_criacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     datahora_atualizacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT transacoes_recorrentes_cartao_credito_id_pk PRIMARY KEY (id),
-    CONSTRAINT transacoes_recorrentes_cartao_credito_fk_usuario_cartao_credito FOREIGN KEY (id_usuario_cartao_credito) REFERENCES essencial.usuario_cartao_credito(id) ON DELETE RESTRICT ON UPDATE CASCADE
+    CONSTRAINT transacoes_recorrentes_cartao_credito_fk_usuario_cartao_credito FOREIGN KEY (id_usuario_cartao_credito) REFERENCES essencial.usuario_cartao_credito(id) ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT transacoes_recorrentes_cartao_credito_fk_categoria FOREIGN KEY (id_categoria) REFERENCES essencial.categorias(id) ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT transacoes_recorrentes_cartao_credito_fk_operador FOREIGN KEY (id_operador) REFERENCES essencial.operadores(id) ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT transacoes_recorrentes_cartao_credito_fk_descricao FOREIGN KEY (id_descricao) REFERENCES transacional.descricao(id) ON DELETE RESTRICT ON UPDATE CASCADE,
@@ -952,6 +956,7 @@ CREATE TABLE transacional.transacoes_recorrentes_cartao_credito_valores (
     id character varying(50) NOT NULL,
     id_transacoes_recorrentes_cartao_credito character varying(50) NOT NULL,
     operacao transacional.procedimento_cartao_credito NOT NULL,
+    categoria transacional.categoria_valores NOT NULL DEFAULT 'Base',
     observacoes text,
     valor numeric(15, 2) NOT NULL,
     CONSTRAINT transacoes_recorrentes_cartao_credito_valores_id_pk PRIMARY KEY (id),
@@ -1049,7 +1054,7 @@ CREATE TABLE transacional.transacoes_cartao_credito_credito_valores (
     CONSTRAINT transacoes_cartao_credito_credito_valores_fk_transacoes_cartao_credito FOREIGN KEY (id_transacoes_cartao_credito) REFERENCES transacional.transacoes_cartao_credito(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
-CREATE OR REPLACE FUNCTION transacional.transacoes_cartao_valores_iniciais()
+CREATE OR REPLACE FUNCTION transacional.transacoes_cartao_credito_valores_iniciais()
 RETURNS TRIGGER AS $$
 BEGIN
     IF TG_OP = 'INSERT'
@@ -1075,7 +1080,7 @@ $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE TRIGGER transacoes_cartao_credito_credito_valores_iniciais
 AFTER INSERT ON transacional.transacoes_cartao_credito
-FOR EACH ROW EXECUTE FUNCTION transacional.transacoes_cartao_credito_credito_valores_iniciais();
+FOR EACH ROW EXECUTE FUNCTION transacional.transacoes_cartao_credito_valores_iniciais();
 
 -- Operacionalização da tabela 'parcelamentos_cartao_credito'
 
@@ -1085,6 +1090,7 @@ CREATE TABLE transacional.parcelamentos_cartao_credito (
     id_transacoes_cartao_credito character varying(50) NOT NULL,
     parcela integer NOT NULL DEFAULT 1,
     observacoes text,
+    valor numeric(15,2) NOT NULL,
     datahora_criacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     datahora_atualizacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT parcelamentos_cartao_credito_id_pk PRIMARY KEY (id),
@@ -1097,17 +1103,6 @@ COMMENT ON COLUMN transacional.parcelamentos_cartao_credito.id_fatura IS 'Refer�
 COMMENT ON COLUMN transacional.parcelamentos_cartao_credito.id_transacoes_cartao_credito IS 'Referência à transação original que foi parcelada (FK para transacional.transacoes_cartao_credito).';
 COMMENT ON COLUMN transacional.parcelamentos_cartao_credito.parcela IS 'Número da parcela atual (ex: 1, 2, 3...).';
 COMMENT ON COLUMN transacional.parcelamentos_cartao_credito.observacoes IS 'Campo de texto livre para anotações ou observações sobre esta parcela específica.';
+COMMENT ON COLUMN transacional.parcelamentos_cartao_credito.valor IS 'Campo de valor, com limite de 2 casas decimais, para registro da parcela.';
 COMMENT ON COLUMN transacional.parcelamentos_cartao_credito.datahora_criacao IS 'Data e hora exatas (UTC) em que o registro da parcela foi criado.';
 COMMENT ON COLUMN transacional.parcelamentos_cartao_credito.datahora_atualizacao IS 'Data e hora exatas (UTC) da última modificação neste registro de parcela.';
-
--- Operacionalização da tabela 'parcelamentos_cartao_credito_valores'
-
-CREATE TABLE transacional.parcelamentos_cartao_credito_valores (
-    id character varying(50) NOT NULL,
-    id_parcelamentos_cartao_credito character varying(50) NOT NULL,
-    operacao transacional.procedimento_cartao_credito NOT NULL,
-    observacoes text,
-    valor numeric(15, 2) NOT NULL,
-    CONSTRAINT parcelamentos_cartao_credito_credito_valores_id_pk PRIMARY KEY (id),
-    CONSTRAINT parcelamentos_cartao_credito_credito_valores_fk_parcelamentos_cartao_credito FOREIGN KEY (id_parcelamentos_cartao_credito) REFERENCES transacional.parcelamentos_cartao_credito(id) ON DELETE CASCADE ON UPDATE CASCADE
-);
