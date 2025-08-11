@@ -198,45 +198,26 @@ COMMENT ON COLUMN essencial.instituicoes_financeiras.logo_url IS 'URL para o log
 COMMENT ON COLUMN essencial.instituicoes_financeiras.datahora_criacao IS 'Data e hora exatas (UTC) em que o registro da instituição foi criado.';
 COMMENT ON COLUMN essencial.instituicoes_financeiras.datahora_atualizacao IS 'Data e hora exatas (UTC) da última modificação manual neste registro.';
 
--- Operacionalização da tabela 'tipo_conta'
+-- Operacionalização da tabela 'conta_instituicao'
 
 CREATE TYPE essencial.tipos_conta AS ENUM ('Conta Corrente', 'Conta Poupança', 'Conta de Pagamento', 'Conta de Benefícios', 'Conta de Custódia');
-
-CREATE TABLE essencial.tipo_conta (
-    id character varying(50) NOT NULL,
-    nome essencial.tipos_conta NOT NULL,
-    descricao text NULL,
-    datahora_criacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    datahora_atualizacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT tipo_conta_id_pk PRIMARY KEY (id),
-    CONSTRAINT tipo_conta_nome_unique UNIQUE (nome)
-);
-COMMENT ON TABLE essencial.tipo_conta IS 'Catálogo dos tipos genéricos de contas financeiras (Ex: Conta Corrente, Poupança).';
-COMMENT ON COLUMN essencial.tipo_conta.id IS 'Identificador único do tipo de conta (PK, fornecido externamente).';
-COMMENT ON COLUMN essencial.tipo_conta.nome IS 'Nome do tipo de conta (ENUM tipos_conta, único).';
-COMMENT ON COLUMN essencial.tipo_conta.descricao IS 'Descrição genérica sobre este tipo de conta (opcional).';
-COMMENT ON COLUMN essencial.tipo_conta.datahora_criacao IS 'Data e hora exatas (UTC) em que o registro da instituição foi criado.';
-COMMENT ON COLUMN essencial.tipo_conta.datahora_atualizacao IS 'Data e hora exatas (UTC) da última modificação manual neste registro.';
-
--- Operacionalização da tabela 'conta_instituicao'
 
 CREATE TABLE essencial.conta_instituicao (
     id character varying(50) NOT NULL,
     id_instituicao_financeira character varying(50) NOT NULL,
-    id_tipo_conta character varying(50) NOT NULL,
+    tipo_conta essencial.tipos_conta NOT NULL,
     nome character varying(150) NULL,
     processamento text NULL,
     datahora_criacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     datahora_atualizacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT conta_instituicao_id_pk PRIMARY KEY (id),
-    CONSTRAINT conta_instituicao_unique UNIQUE (id_instituicao_financeira, id_tipo_conta),
+    CONSTRAINT conta_instituicao_unique UNIQUE (id_instituicao_financeira, tipo_conta),
     CONSTRAINT conta_instituicao_fk_instituicao FOREIGN KEY (id_instituicao_financeira) REFERENCES essencial.instituicoes_financeiras(id) ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT conta_instituicao_fk_tipo_conta FOREIGN KEY (id_tipo_conta) REFERENCES essencial.tipo_conta(id) ON DELETE RESTRICT ON UPDATE CASCADE
 );
 COMMENT ON TABLE essencial.conta_instituicao IS 'Define os "produtos" financeiros específicos oferecidos, ligando uma instituição a um tipo de conta.';
 COMMENT ON COLUMN essencial.conta_instituicao.id IS 'Identificador único do produto financeiro (PK, fornecido externamente). Ex: "bb_cc_ouro".';
 COMMENT ON COLUMN essencial.conta_instituicao.id_instituicao_financeira IS 'Referência à instituição financeira que oferece este produto (FK para instituicoes_financeiras).';
-COMMENT ON COLUMN essencial.conta_instituicao.id_tipo_conta IS 'Referência ao tipo genérico de conta deste produto (FK para tipo_conta).';
+COMMENT ON COLUMN essencial.conta_instituicao.tipo_conta IS 'Referência ao tipo genérico de conta deste produto (FK para tipo_conta).';
 COMMENT ON COLUMN essencial.conta_instituicao.nome IS 'Nome específico do produto (Ex: "NuConta", "Conta Fácil"), se diferente do tipo genérico (opcional).';
 COMMENT ON COLUMN essencial.conta_instituicao.processamento IS 'Informações sobre horários/dias de processamento para este produto específico (opcional).';
 COMMENT ON COLUMN essencial.conta_instituicao.datahora_criacao IS 'Data e hora exatas (UTC) em que o registro foi criado.';
@@ -367,73 +348,120 @@ COMMENT ON COLUMN essencial.usuario_cartao_credito.situacao IS 'Status do cartã
 COMMENT ON COLUMN essencial.usuario_cartao_credito.datahora_criacao IS 'Data e hora exatas (UTC) em que o registro foi criado.';
 COMMENT ON COLUMN essencial.usuario_cartao_credito.datahora_atualizacao IS 'Data e hora exatas (UTC) da última modificação manual neste registro.';
 
--- Operacionalização da tabela 'moedas'
+-- Operacionalização da tabela 'indexadores_investimentos'
 
-CREATE TABLE essencial.moedas (
+CREATE TABLE essencial.indexadores_investimentos (
     id character varying(50) NOT NULL,
-    iso character(3) NOT NULL UNIQUE,
-    nome character varying(150) NOT NULL UNIQUE,
-    valor_atual numeric(15, 6) NOT NULL DEFAULT 0,
+    nome character varying(100) NOT NULL,
     datahora_criacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     datahora_atualizacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT moedas_id_pk PRIMARY KEY (id),
-    CONSTRAINT moedas_verificar_valor_positivo CHECK (valor_atual >= 0),
-    CONSTRAINT moedas_verificar_formato_iso CHECK (iso ~ '^[A-Z]{3}$')
+    CONSTRAINT indexadores_investimentos_pk PRIMARY KEY (id),
+    CONSTRAINT indexadores_investimentos_unique UNIQUE (nome)
 );
-COMMENT ON TABLE essencial.moedas IS 'Catálogo das moedas disponíveis no sistema com suas respectivas taxas de câmbio em relação ao BRL.';
-COMMENT ON COLUMN essencial.moedas.id IS 'Identificador único da moeda (PK, fornecido externamente).';
-COMMENT ON COLUMN essencial.moedas.iso IS 'Código ISO 4217 da moeda (3 caracteres, único).';
-COMMENT ON COLUMN essencial.moedas.nome IS 'Nome completo da moeda (único).';
-COMMENT ON COLUMN essencial.moedas.valor_atual IS 'Valor da moeda em relação ao BRL (fornecido externamente).';
-COMMENT ON COLUMN essencial.moedas.datahora_criacao IS 'Data e hora exatas (UTC) em que o registro foi criado.';
-COMMENT ON COLUMN essencial.moedas.datahora_atualizacao IS 'Data e hora exatas (UTC) da última modificação manual neste registro.';
+COMMENT ON TABLE essencial.indexadores_investimentos IS 'Catálogo de indexadores para investimentos em renda fixa.';
+COMMENT ON COLUMN essencial.indexadores_investimentos.id IS 'Identificador único da associação usuário-cartão (PK, fornecido externamente).';
+COMMENT ON COLUMN essencial.indexadores_investimentos.nome IS 'Nome do índice de referência (ex: CDI, IPCA).';
+COMMENT ON COLUMN essencial.indexadores_investimentos.datahora_criacao IS 'Data e hora exatas (UTC) em que o registro foi criado.';
+COMMENT ON COLUMN essencial.indexadores_investimentos.datahora_atualizacao IS 'Data e hora exatas (UTC) da última modificação manual neste registro.';
 
-INSERT INTO essencial.moedas (id, iso, nome, valor_atual) 
-    VALUES ('1', 'BRL', 'Real', 1.000000);
+-- Operacionalização da tabela 'historico_indexadores_investimentos'
 
--- Operacionalização da tabela 'historico_cambio_moedas'
-
-CREATE TABLE essencial.historico_cambio_moedas (
+CREATE TABLE essencial.indexadores_investimentos_historico (
     id character varying(50) NOT NULL,
-    id_moeda character varying(50) NOT NULL,
-    valor numeric(15, 6) NOT NULL,
-    fonte character varying(100) NULL,
+    id_indexadores_investimentos character varying(50) NOT NULL,
+    data_referencia date NOT NULL,
+    valor numeric(15,6) NOT NULL,
     datahora_criacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     datahora_atualizacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT historico_cambio_moedas_pk PRIMARY KEY (id),
-    CONSTRAINT historico_cambio_moedas_fk_moedas FOREIGN KEY (id_moeda) REFERENCES essencial.moedas(id) ON DELETE RESTRICT ON UPDATE NO ACTION,
-    CONSTRAINT historico_cambio_moedas_verificar_valor_positivo CHECK (valor > 0)
+    CONSTRAINT indexadores_investimentos_historico_pk PRIMARY KEY (id),
+    CONSTRAINT indexadores_investimentos_historico_fk_indexadores_investimentos FOREIGN KEY (id_indexadores_investimentos) REFERENCES essencial.indexadores_investimentos(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT indexadores_investimentos_historico_unique UNIQUE (id_indexadores_investimentos, data_referencia),
 );
-COMMENT ON TABLE essencial.historico_cambio_moedas IS 'Histórico das taxas de câmbio das moedas, permitindo rastreamento temporal das variações.';
-COMMENT ON COLUMN essencial.historico_cambio_moedas.id IS 'Identificador único do registro histórico (PK, fornecido externamente).';
-COMMENT ON COLUMN essencial.historico_cambio_moedas.id_moeda IS 'Referência à moeda (FK para moedas).';
-COMMENT ON COLUMN essencial.historico_cambio_moedas.valor IS 'Taxa de câmbio registrada (sempre > 0).';
-COMMENT ON COLUMN essencial.historico_cambio_moedas.fonte IS 'Fonte da cotação (API, manual, etc.) (opcional).';
-COMMENT ON COLUMN essencial.historico_cambio_moedas.datahora_criacao IS 'Data e hora exatas (UTC) em que o registro foi criado.';
-COMMENT ON COLUMN essencial.historico_cambio_moedas.datahora_atualizacao IS 'Data e hora exatas (UTC) da última modificação manual neste registro.';
+COMMENT ON TABLE essencial.indexadores_investimentos_historico IS 'Histórico de valores dos índices de referência.';
+COMMENT ON COLUMN essencial.indexadores_investimentos_historico.id IS 'Identificador único do registro histórico (PK, fornecido externamente).';
+COMMENT ON COLUMN essencial.indexadores_investimentos_historico.id_indexadores_investimentos IS 'Referência ao índice (FK para investment_indexes).';
+COMMENT ON COLUMN essencial.indexadores_investimentos_historico.data_referencia IS 'Data do valor registrado.';
+COMMENT ON COLUMN essencial.indexadores_investimentos_historico.valor IS 'Valor do índice na data especificada.';
+COMMENT ON COLUMN essencial.indexadores_investimentos_historico.datahora_criacao IS 'Data e hora exatas (UTC) em que o registro foi criado.';
+COMMENT ON COLUMN essencial.indexadores_investimentos_historico.datahora_atualizacao IS 'Data e hora exatas (UTC) da última modificação manual neste registro.';
 
--- Operacionalização da tabela 'usuario_conta_moeda'
+-- Operacionalização da tabela 'emissores_renda_fixa'
 
-CREATE TABLE essencial.usuario_conta_moeda (
+CREATE TABLE essencial.emissores_renda_fixa (
     id character varying(50) NOT NULL,
-    id_usuario_conta character varying(50) NOT NULL,
-    id_moeda character varying(50) NOT NULL,
+    nome text NOT NULL,
     datahora_criacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     datahora_atualizacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT usuario_conta_moeda_pk PRIMARY KEY (id),
-    CONSTRAINT usuario_conta_moeda_fk_usuario_conta FOREIGN KEY (id_usuario_conta) REFERENCES essencial.usuario_contas(id) ON DELETE RESTRICT ON UPDATE NO ACTION,
-    CONSTRAINT usuario_conta_moeda_fk_moedas FOREIGN KEY (id_moeda) REFERENCES essencial.moedas(id) ON DELETE RESTRICT ON UPDATE NO ACTION,
-    CONSTRAINT historico_cambio_moedas_unique_moedas_conta UNIQUE (id_usuario_conta, id_moeda)
+    CONSTRAINT emissores_renda_fixa_pk PRIMARY KEY (id),
+    CONSTRAINT emissores_renda_fixa_unique UNIQUE (nome)
 );
-COMMENT ON TABLE essencial.usuario_conta_moeda IS 'Associação entre contas de usuários e moedas que podem ser utilizadas nessas contas.';
-COMMENT ON COLUMN essencial.usuario_conta_moeda.id IS 'Identificador único da associação (PK, fornecido externamente).';
-COMMENT ON COLUMN essencial.usuario_conta_moeda.id_usuario_conta IS 'Referência à conta do usuário (FK para usuario_contas).';
-COMMENT ON COLUMN essencial.usuario_conta_moeda.id_moeda IS 'Referência à moeda (FK para moedas).';
-COMMENT ON COLUMN essencial.usuario_conta_moeda.datahora_criacao IS 'Data e hora exatas (UTC) em que o registro foi criado.';
-COMMENT ON COLUMN essencial.usuario_conta_moeda.datahora_atualizacao IS 'Data e hora exatas (UTC) da última modificação manual neste registro.';
+COMMENT ON TABLE essencial.emissores_renda_fixa IS 'Catálogo de emissores de investimentos de renda fixa.';
+COMMENT ON COLUMN essencial.emissores_renda_fixa.id IS 'Identificador único do emissor (PK, fornecido externamente).';
+COMMENT ON COLUMN essencial.emissores_renda_fixa.nome IS 'Nome do emissor (ex: Tesouro Nacional, Banco do Brasil).';
+COMMENT ON COLUMN essencial.emissores_renda_fixa.datahora_criacao IS 'Data e hora exatas (UTC) em que o registro foi criado.';
+COMMENT ON COLUMN essencial.emissores_renda_fixa.datahora_atualizacao IS 'Data e hora exatas (UTC) da última modificação manual neste registro.';
+
+-- Operacionalização da tabela 'produtos_renda_fixa'
+
+CREATE TABLE essencial.produtos_renda_fixa (
+    id character varying(50) NOT NULL,
+    id_emissores_renda_fixa character varying(50) NOT NULL,
+    id_indexadores_investimentos character varying(50) NOT NULL,
+    descricao text NOT NULL,
+    rendimento numeric(4,2),
+    datahora_criacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    datahora_atualizacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT produtos_renda_fixa_pk PRIMARY KEY (id),
+    CONSTRAINT produtos_renda_fixa_fk_emissores_renda_fixa FOREIGN KEY (id_emissores_renda_fixa) REFERENCES essencial.emissores_renda_fixa(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT produtos_renda_fixa_fk_indexadores_investimentos FOREIGN KEY (id_indexadores_investimentos) REFERENCES essencial.indexadores_investimentos(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT produtos_renda_fixa_unique UNIQUE (id_emissores_renda_fixa, id_indexadores_investimentos, descricao)
+);
+COMMENT ON TABLE essencial.produtos_renda_fixa IS 'Armazena os produtos de renda fixa disponíveis, com informações sobre emissores, indexadores e rendimento.';
+COMMENT ON COLUMN essencial.produtos_renda_fixa.id IS 'Identificador único do produto de renda fixa (PK, fornecido externamente).';
+COMMENT ON COLUMN essencial.produtos_renda_fixa.id_emissores_renda_fixa IS 'Referência ao emissor do produto de renda fixa (FK para essencial.emissores_renda_fixa).';
+COMMENT ON COLUMN essencial.produtos_renda_fixa.id_indexadores_investimentos IS 'Referência ao indexador relacionado ao produto (FK para essencial.indexadores_investimentos).';
+COMMENT ON COLUMN essencial.produtos_renda_fixa.descricao IS 'Descrição detalhada do produto de renda fixa.';
+COMMENT ON COLUMN essencial.produtos_renda_fixa.rendimento IS 'Percentual de rendimento do produto de renda fixa (opcional).';
+COMMENT ON COLUMN essencial.produtos_renda_fixa.datahora_criacao IS 'Data e hora exatas (UTC) em que o registro foi criado.';
+COMMENT ON COLUMN essencial.produtos_renda_fixa.datahora_atualizacao IS 'Data e hora exatas (UTC) da última modificação manual neste registro.';
+
+-- Operacionalização da tabela 'tipos_renda_variavel'
+
+CREATE TABLE essencial.tipos_renda_variavel (
+    id character varying(50) NOT NULL,
+    nome character varying(100) NOT NULL,
+    descricao text NOT NULL,
+    datahora_criacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    datahora_atualizacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT tipos_renda_variavel_pk PRIMARY KEY (id),
+    CONSTRAINT tipos_renda_variavel_unique UNIQUE (nome, descricao)
+);
+COMMENT ON TABLE essencial.tipos_renda_variavel IS 'Armazena os diferentes tipos de renda variável disponíveis, com nome e descrição.';
+
+COMMENT ON COLUMN essencial.tipos_renda_variavel.id IS 'Identificador único do tipo de renda variável (PK, fornecido externamente).';
+COMMENT ON COLUMN essencial.tipos_renda_variavel.nome IS 'Nome do tipo de renda variável, deve ser único em combinação com a descrição.';
+COMMENT ON COLUMN essencial.tipos_renda_variavel.descricao IS 'Descrição detalhada do tipo de renda variável, deve ser única em combinação com o nome.';
+COMMENT ON COLUMN essencial.tipos_renda_variavel.datahora_criacao IS 'Data e hora exatas (UTC) em que o registro foi criado.';
+COMMENT ON COLUMN essencial.tipos_renda_variavel.datahora_atualizacao IS 'Data e hora exatas (UTC) da última modificação manual neste registro.';
+
+-- Operacionalização da tabela 'bolsas_de_valores'
+
+CREATE TABLE essencial.bolsas_de_valores (
+    id character varying(50) NOT NULL,
+    nome character varying(100) NOT NULL,
+    descricao character varying(100),
+    CONSTRAINT bolsas_de_valores_pk PRIMARY KEY (id),
+    CONSTRAINT bolsas_de_valores_unique UNIQUE (nome)
+);
+COMMENT ON TABLE essencial.bolsas_de_valores IS 'Armazena as informações sobre as bolsas de valores disponíveis, incluindo nome e descrição.';
+
+COMMENT ON COLUMN essencial.bolsas_de_valores.id IS 'Identificador único da bolsa de valores (PK, fornecido externamente).';
+COMMENT ON COLUMN essencial.bolsas_de_valores.nome IS 'Nome da bolsa de valores, deve ser único.';
+COMMENT ON COLUMN essencial.bolsas_de_valores.descricao IS 'Descrição adicional ou informativa sobre a bolsa de valores (opcional).';
+
 
 -- =============================================================================
--- CRIAÇÃO DAS TABELAS DO SCHEMA "transacional"
+-- CRIAÇÃO DAS TABELAS DO SCHEMA "transacional"  relacionadas à transações
 -- =============================================================================
 
 -- Operacionalização da tabela 'descricao'
@@ -561,7 +589,7 @@ CREATE TABLE transacional.transacoes_saldo (
     id_descricao character varying(50) NOT NULL,
     situacao transacional.situacao NOT NULL DEFAULT 'Efetuado',
     data_programada timestamp with time zone,
-    data_efetivacao timestamp with time zone NOT NULL,
+    data_efetivacao timestamp with time zone,
     termos_servico text,
     comprovante text,
     nota_fiscal text,
@@ -577,7 +605,7 @@ CREATE TABLE transacional.transacoes_saldo (
     CONSTRAINT transacoes_saldo_fk_operador FOREIGN KEY (id_operador) REFERENCES essencial.operadores(id) ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT transacoes_saldo_fk_descricao FOREIGN KEY (id_descricao) REFERENCES transacional.descricao(id) ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT transacoes_saldo_fk_recorrencia FOREIGN KEY (id_recorrencia) REFERENCES transacional.transacoes_recorrentes_saldo(id) ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT transacoes_saldo_verificar_data_efetivacao_maior_igual_programada CHECK (data_programada IS NULL OR data_efetivacao >= data_programada) ,
+    CONSTRAINT transacoes_saldo_verificar_data_efetivacao_maior_igual_programada CHECK (data_programada IS NULL OR data_efetivacao >= data_programada),
     CONSTRAINT transacoes_saldo_verificar_efetivacao_nao_pendente CHECK ((situacao = 'Pendente' AND data_efetivacao IS NULL) OR (situacao <> 'Pendente' AND data_efetivacao IS NOT NULL))
 );
 COMMENT ON TABLE transacional.transacoes_saldo IS 'Armazena registros de transações financeiras de saldo realizadas no sistema.';
@@ -653,7 +681,7 @@ CREATE TABLE transacional.transferencias_internas (
     id_procedimento character varying(50) NOT NULL,
     situacao transacional.situacao NOT NULL DEFAULT 'Efetuado',
     data_programada timestamp with time zone,
-    data_efetivacao timestamp with time zone NOT NULL,
+    data_efetivacao timestamp with time zone,
     comprovante text,
     observacoes text,
     datahora_criacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -664,7 +692,8 @@ CREATE TABLE transacional.transferencias_internas (
     CONSTRAINT transferencias_internas_fk_procedimento FOREIGN KEY (id_procedimento) REFERENCES essencial.procedimentos_saldo(id) ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT transferencias_internas_fk_operador FOREIGN KEY (id_operador) REFERENCES essencial.operadores(id) ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT transferencias_internas_verificar_data_efetivacao_maior_igual_programada CHECK (data_programada IS NULL OR data_efetivacao >= data_programada),
-    CONSTRAINT transferencias_internas_verificar_efetivacao_nao_pendente CHECK ((situacao = 'Pendente' AND data_efetivacao IS NULL) OR (situacao <> 'Pendente' AND data_efetivacao IS NOT NULL))
+    CONSTRAINT transferencias_internas_verificar_efetivacao_nao_pendente CHECK ((situacao = 'Pendente' AND data_efetivacao IS NULL) OR (situacao <> 'Pendente' AND data_efetivacao IS NOT NULL)),
+    CONSTRAINT transferencias_internas_verificar_contas_diferentes CHECK (id_usuario_conta_origem <> id_usuario_conta_destino)
 );
 COMMENT ON TABLE transacional.transferencias_internas IS 'Armazena registros de transações financeiras de saldo realizadas no sistema.';
 COMMENT ON COLUMN transacional.transferencias_internas.id IS 'Identificador único da transação de saldo (PK, fornecido externamente).';
@@ -901,6 +930,8 @@ COMMENT ON COLUMN transacional.faturas_cartao_credito.fatura IS 'Campo para arma
 COMMENT ON COLUMN transacional.faturas_cartao_credito.datahora_criacao IS 'Data e hora exatas (UTC) em que o registro da fatura foi criado.';
 COMMENT ON COLUMN transacional.faturas_cartao_credito.datahora_atualizacao IS 'Data e hora exatas (UTC) da última modificação manual neste registro.';
 
+-- Operacionalização da tabela 'transacoes_recorrentes_cartao_credito'
+
 CREATE TYPE transacional.procedimento_cartao_credito AS ENUM ('Crédito em Fatura', 'Débito em Fatura');
 
 CREATE TABLE transacional.transacoes_recorrentes_cartao_credito (
@@ -1003,7 +1034,7 @@ CREATE TABLE transacional.transacoes_cartao_credito (
     parcelas integer NOT NULL DEFAULT 1,
     situacao transacional.situacao NOT NULL DEFAULT 'Efetuado',
     data_programada timestamp with time zone,
-    data_efetivacao timestamp with time zone NOT NULL,
+    data_efetivacao timestamp with time zone,
     termos_servico text,
     comprovante text,
     nota_fiscal text,
@@ -1018,7 +1049,7 @@ CREATE TABLE transacional.transacoes_cartao_credito (
     CONSTRAINT transacoes_cartao_credito_fk_operador FOREIGN KEY (id_operador) REFERENCES essencial.operadores(id) ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT transacoes_cartao_credito_fk_descricao FOREIGN KEY (id_descricao) REFERENCES transacional.descricao(id) ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT transacoes_cartao_credito_fk_recorrencia FOREIGN KEY (id_recorrencia) REFERENCES transacional.transacoes_recorrentes_cartao_credito(id) ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT transacoes_cartao_credito_verificar_data_efetivacao_maior_igual_programada CHECK (data_programada IS NULL OR data_efetivacao >= data_programada) ,
+    CONSTRAINT transacoes_cartao_credito_verificar_data_efetivacao_maior_igual_programada CHECK (data_programada IS NULL OR data_efetivacao >= data_programada),
     CONSTRAINT transacoes_cartao_credito_verificar_efetivacao_nao_pendente CHECK ((situacao = 'Pendente' AND data_efetivacao IS NULL) OR (situacao <> 'Pendente' AND data_efetivacao IS NOT NULL))
 );
 COMMENT ON TABLE transacional.transacoes_cartao_credito IS 'Armazena todas as transações individuais realizadas com cartões de crédito.';
@@ -1048,6 +1079,8 @@ CREATE TABLE transacional.transacoes_cartao_credito_credito_valores (
     id character varying(50) NOT NULL,
     id_transacoes_cartao_credito character varying(50) NOT NULL,
     operacao transacional.procedimento_cartao_credito NOT NULL,
+    data_efetivacao timestamp with time zone NOT NULL,
+    categoria transacional.categoria_valores NOT NULL DEFAULT 'Base',
     observacoes text,
     valor numeric(15, 2) NOT NULL,
     CONSTRAINT transacoes_cartao_credito_credito_valores_id_pk PRIMARY KEY (id),
@@ -1106,3 +1139,11 @@ COMMENT ON COLUMN transacional.parcelamentos_cartao_credito.observacoes IS 'Camp
 COMMENT ON COLUMN transacional.parcelamentos_cartao_credito.valor IS 'Campo de valor, com limite de 2 casas decimais, para registro da parcela.';
 COMMENT ON COLUMN transacional.parcelamentos_cartao_credito.datahora_criacao IS 'Data e hora exatas (UTC) em que o registro da parcela foi criado.';
 COMMENT ON COLUMN transacional.parcelamentos_cartao_credito.datahora_atualizacao IS 'Data e hora exatas (UTC) da última modificação neste registro de parcela.';
+
+-- =============================================================================
+-- CRIAÇÃO DAS TABELAS DO SCHEMA "transacional" relacionadas à investimentos
+-- =============================================================================
+
+-- Operacionalização da tabela 'transacoes_investimentos_renda_fixa'
+
+CREATE TYPE transacional.situacao_invetimento AS ENUM ('Aplicação', 'Resgate');
