@@ -1172,14 +1172,12 @@ CREATE TABLE transacional.transacoes_investimentos_renda_fixa (
     CONSTRAINT transacoes_investimentos_renda_fixa_fk_operador FOREIGN KEY (id_operador) REFERENCES essencial.operadores(id) ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT transacoes_investimentos_renda_fixa_verificar_data_efetivacao_maior_igual_programada CHECK (data_programada IS NULL OR data_efetivacao >= data_programada),
     CONSTRAINT transacoes_investimentos_renda_fixa_verificar_efetivacao_nao_pendente CHECK ((situacao = 'Pendente' AND data_efetivacao IS NULL) OR (situacao <> 'Pendente' AND data_efetivacao IS NOT NULL)),
-    CONSTRAINT transacoes_investimentos_renda_fixa_verificar_contas_diferentes CHECK (id_usuario_conta_origem <> id_usuario_conta_destino)
 );
 
--- Criar função para validar que a conta é de custódia ou permite investimentos
+
 CREATE OR REPLACE FUNCTION transacional.validar_conta_investimento()
 RETURNS TRIGGER AS $$
 BEGIN
-    -- Verifica se a conta referenciada é de tipo 'Conta de Custódia' ou tem investimentos = TRUE
     IF NOT EXISTS (
         SELECT 1
         FROM essencial.usuario_contas uc
