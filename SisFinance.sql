@@ -1192,7 +1192,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Criar trigger para validar antes de inserir ou atualizar
 CREATE TRIGGER validar_conta_investimento_trigger
 BEFORE INSERT OR UPDATE ON transacional.transacoes_investimentos_renda_fixa
 FOR EACH ROW EXECUTE FUNCTION transacional.validar_conta_investimento();
