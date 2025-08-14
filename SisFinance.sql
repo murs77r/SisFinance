@@ -127,7 +127,7 @@ CREATE TABLE essencial.usuarios (
     datahora_atualizacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT usuarios_id_pk PRIMARY KEY (id),
     CONSTRAINT usuarios_email_unique UNIQUE (email),
-    CONSTRAINT usuarios_verificacao_email CHECK (essencial.validar_formato_do_email(email) IS NOT NULL AND lower(email) = email)
+    CONSTRAINT usuarios_verificacao_email CHECK (lower(email) = email)
 );
 COMMENT ON TABLE essencial.usuarios IS 'Armazena informações sobre os usuários do sistema.';
 COMMENT ON COLUMN essencial.usuarios.id IS 'Identificador único e exclusivo para cada usuário (PK, fornecido externamente).';
