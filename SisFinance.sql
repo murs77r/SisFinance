@@ -206,6 +206,7 @@ CREATE TABLE essencial.conta_instituicao (
     id character varying(50) NOT NULL,
     id_instituicao_financeira character varying(50) NOT NULL,
     tipo_conta essencial.tipos_conta NOT NULL,
+    investimentos BOOLEAN NOT NULL DEFAULT TRUE,
     nome character varying(150) NULL,
     processamento text NULL,
     datahora_criacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -213,11 +214,13 @@ CREATE TABLE essencial.conta_instituicao (
     CONSTRAINT conta_instituicao_id_pk PRIMARY KEY (id),
     CONSTRAINT conta_instituicao_unique UNIQUE (id_instituicao_financeira, tipo_conta),
     CONSTRAINT conta_instituicao_fk_instituicao FOREIGN KEY (id_instituicao_financeira) REFERENCES essencial.instituicoes_financeiras(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT conta_instituicao_verificar_custodia_investimentos CHECK (tipo_conta <> 'Conta de Custódia' OR investimentos IS TRUE);
 );
 COMMENT ON TABLE essencial.conta_instituicao IS 'Define os "produtos" financeiros específicos oferecidos, ligando uma instituição a um tipo de conta.';
 COMMENT ON COLUMN essencial.conta_instituicao.id IS 'Identificador único do produto financeiro (PK, fornecido externamente). Ex: "bb_cc_ouro".';
 COMMENT ON COLUMN essencial.conta_instituicao.id_instituicao_financeira IS 'Referência à instituição financeira que oferece este produto (FK para instituicoes_financeiras).';
 COMMENT ON COLUMN essencial.conta_instituicao.tipo_conta IS 'Referência ao tipo genérico de conta deste produto (FK para tipo_conta).';
+COMMENT ON COLUMN essencial.conta_instituicao.investimentos IS 'Se a conta aceita ou não investimentos.';
 COMMENT ON COLUMN essencial.conta_instituicao.nome IS 'Nome específico do produto (Ex: "NuConta", "Conta Fácil"), se diferente do tipo genérico (opcional).';
 COMMENT ON COLUMN essencial.conta_instituicao.processamento IS 'Informações sobre horários/dias de processamento para este produto específico (opcional).';
 COMMENT ON COLUMN essencial.conta_instituicao.datahora_criacao IS 'Data e hora exatas (UTC) em que o registro foi criado.';
@@ -1146,4 +1149,52 @@ COMMENT ON COLUMN transacional.parcelamentos_cartao_credito.datahora_atualizacao
 
 -- Operacionalização da tabela 'transacoes_investimentos_renda_fixa'
 
-CREATE TYPE transacional.situacao_invetimento AS ENUM ('Aplicação', 'Resgate');
+CREATE TYPE transacional.operacao_investimento AS ENUM ('Aplicação', 'Resgate');
+
+CREATE TABLE transacional.transacoes_investimentos_renda_fixa (
+    id character varying(50) NOT NULL,
+    id_usuario_conta character varying(50) NOT NULL,
+    id_usuario_conta_investimento character varying(50) NOT NULL,
+    id_operador character varying(50) NOT NULL,
+    id_procedimento character varying(50) NOT NULL,
+    situacao transacional.situacao NOT NULL DEFAULT 'Efetuado',
+    operacao transacional.operacao_investimento NOT NULL,
+    data_programada timestamp with time zone,
+    data_efetivacao timestamp with time zone,
+    comprovante text,
+    observacoes text,
+    datahora_criacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    datahora_atualizacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT transacoes_investimentos_renda_fixa_id_pk PRIMARY KEY (id),
+    CONSTRAINT transacoes_investimentos_renda_fixa_fk_usuario_conta FOREIGN KEY (id_usuario_conta) REFERENCES essencial.usuario_contas(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT transacoes_investimentos_renda_fixa_fk_usuario_conta_investimento FOREIGN KEY (id_usuario_conta_investimento) REFERENCES essencial.usuario_contas(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT transacoes_investimentos_renda_fixa_fk_procedimento FOREIGN KEY (id_procedimento) REFERENCES essencial.procedimentos_saldo(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT transacoes_investimentos_renda_fixa_fk_operador FOREIGN KEY (id_operador) REFERENCES essencial.operadores(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT transacoes_investimentos_renda_fixa_verificar_data_efetivacao_maior_igual_programada CHECK (data_programada IS NULL OR data_efetivacao >= data_programada),
+    CONSTRAINT transacoes_investimentos_renda_fixa_verificar_efetivacao_nao_pendente CHECK ((situacao = 'Pendente' AND data_efetivacao IS NULL) OR (situacao <> 'Pendente' AND data_efetivacao IS NOT NULL)),
+    CONSTRAINT transacoes_investimentos_renda_fixa_verificar_contas_diferentes CHECK (id_usuario_conta_origem <> id_usuario_conta_destino)
+);
+
+-- Criar função para validar que a conta é de custódia ou permite investimentos
+CREATE OR REPLACE FUNCTION transacional.validar_conta_investimento()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Verifica se a conta referenciada é de tipo 'Conta de Custódia' ou tem investimentos = TRUE
+    IF NOT EXISTS (
+        SELECT 1
+        FROM essencial.usuario_contas uc
+        JOIN essencial.conta_instituicao ci ON uc.id_conta_instituicao = ci.id
+        WHERE uc.id = NEW.id_usuario_conta_investimento
+          AND (ci.tipo_conta = 'Conta de Custódia' OR ci.investimentos = TRUE)
+    ) THEN
+        RAISE EXCEPTION 'A conta selecionada para investimento deve ser uma Conta de Custódia ou permitir investimentos';
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Criar trigger para validar antes de inserir ou atualizar
+CREATE TRIGGER validar_conta_investimento_trigger
+BEFORE INSERT OR UPDATE ON transacional.transacoes_investimentos_renda_fixa
+FOR EACH ROW EXECUTE FUNCTION transacional.validar_conta_investimento();
