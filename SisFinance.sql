@@ -404,30 +404,6 @@ COMMENT ON COLUMN essencial.emissores_renda_fixa.nome IS 'Nome do emissor (ex: T
 COMMENT ON COLUMN essencial.emissores_renda_fixa.datahora_criacao IS 'Data e hora exatas (UTC) em que o registro foi criado.';
 COMMENT ON COLUMN essencial.emissores_renda_fixa.datahora_atualizacao IS 'Data e hora exatas (UTC) da última modificação manual neste registro.';
 
--- Operacionalização da tabela 'produtos_renda_fixa'
-
-CREATE TABLE essencial.produtos_renda_fixa (
-    id character varying(50) NOT NULL,
-    id_emissores_renda_fixa character varying(50) NOT NULL,
-    id_indexadores_investimentos character varying(50) NOT NULL,
-    descricao text NOT NULL,
-    rendimento numeric(4,2),
-    datahora_criacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    datahora_atualizacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT produtos_renda_fixa_pk PRIMARY KEY (id),
-    CONSTRAINT produtos_renda_fixa_fk_emissores_renda_fixa FOREIGN KEY (id_emissores_renda_fixa) REFERENCES essencial.emissores_renda_fixa(id) ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT produtos_renda_fixa_fk_indexadores_investimentos FOREIGN KEY (id_indexadores_investimentos) REFERENCES essencial.indexadores_investimentos(id) ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT produtos_renda_fixa_unique UNIQUE (id_emissores_renda_fixa, id_indexadores_investimentos, descricao)
-);
-COMMENT ON TABLE essencial.produtos_renda_fixa IS 'Armazena os produtos de renda fixa disponíveis, com informações sobre emissores, indexadores e rendimento.';
-COMMENT ON COLUMN essencial.produtos_renda_fixa.id IS 'Identificador único do produto de renda fixa (PK, fornecido externamente).';
-COMMENT ON COLUMN essencial.produtos_renda_fixa.id_emissores_renda_fixa IS 'Referência ao emissor do produto de renda fixa (FK para essencial.emissores_renda_fixa).';
-COMMENT ON COLUMN essencial.produtos_renda_fixa.id_indexadores_investimentos IS 'Referência ao indexador relacionado ao produto (FK para essencial.indexadores_investimentos).';
-COMMENT ON COLUMN essencial.produtos_renda_fixa.descricao IS 'Descrição detalhada do produto de renda fixa.';
-COMMENT ON COLUMN essencial.produtos_renda_fixa.rendimento IS 'Percentual de rendimento do produto de renda fixa (opcional).';
-COMMENT ON COLUMN essencial.produtos_renda_fixa.datahora_criacao IS 'Data e hora exatas (UTC) em que o registro foi criado.';
-COMMENT ON COLUMN essencial.produtos_renda_fixa.datahora_atualizacao IS 'Data e hora exatas (UTC) da última modificação manual neste registro.';
-
 -- Operacionalização da tabela 'tipos_renda_variavel'
 
 CREATE TABLE essencial.tipos_renda_variavel (
@@ -1147,6 +1123,33 @@ COMMENT ON COLUMN transacional.parcelamentos_cartao_credito.datahora_atualizacao
 -- CRIAÇÃO DAS TABELAS DO SCHEMA "transacional" relacionadas à investimentos
 -- =============================================================================
 
+-- Operacionalização da tabela 'produtos_renda_fixa'
+
+CREATE TABLE transacional.produtos_renda_fixa (
+    id character varying(50) NOT NULL,
+    id_emissores_renda_fixa character varying(50) NOT NULL,
+    id_indexadores_investimentos character varying(50) NOT NULL,
+    id_usuario character varying(50) NOT NULL,
+    descricao text NOT NULL,
+    rendimento numeric(4,2),
+    datahora_criacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    datahora_atualizacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT produtos_renda_fixa_pk PRIMARY KEY (id),
+    CONSTRAINT produtos_renda_fixa_fk_emissores_renda_fixa FOREIGN KEY (id_emissores_renda_fixa) REFERENCES essencial.emissores_renda_fixa(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT produtos_renda_fixa_fk_indexadores_investimentos FOREIGN KEY (id_indexadores_investimentos) REFERENCES essencial.indexadores_investimentos(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT produtos_renda_fixa_fk_usuarios FOREIGN KEY (id_usuario) REFERENCES essencial.usuarios(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT produtos_renda_fixa_unique UNIQUE (id_emissores_renda_fixa, id_indexadores_investimentos, descricao)
+);
+COMMENT ON TABLE transacional.produtos_renda_fixa IS 'Armazena os produtos de renda fixa disponíveis, com informações sobre emissores, indexadores e rendimento.';
+COMMENT ON COLUMN transacional.produtos_renda_fixa.id IS 'Identificador único do produto de renda fixa (PK, fornecido externamente).';
+COMMENT ON COLUMN transacional.produtos_renda_fixa.id_emissores_renda_fixa IS 'Referência ao emissor do produto de renda fixa (FK para essencial.emissores_renda_fixa).';
+COMMENT ON COLUMN transacional.produtos_renda_fixa.id_indexadores_investimentos IS 'Referência ao indexador relacionado ao produto (FK para essencial.indexadores_investimentos).';
+COMMENT ON COLUMN transacional.produtos_renda_fixa.id_usuario IS 'Referência ao usuário (FK para essencial.usuarios).';
+COMMENT ON COLUMN transacional.produtos_renda_fixa.descricao IS 'Descrição detalhada do produto de renda fixa.';
+COMMENT ON COLUMN transacional.produtos_renda_fixa.rendimento IS 'Percentual de rendimento do produto de renda fixa (opcional).';
+COMMENT ON COLUMN transacional.produtos_renda_fixa.datahora_criacao IS 'Data e hora exatas (UTC) em que o registro foi criado.';
+COMMENT ON COLUMN transacional.produtos_renda_fixa.datahora_atualizacao IS 'Data e hora exatas (UTC) da última modificação manual neste registro.';
+
 -- Operacionalização da tabela 'transacoes_investimentos_renda_fixa'
 
 CREATE TYPE transacional.operacao_investimento AS ENUM ('Aplicação', 'Resgate');
@@ -1170,7 +1173,7 @@ CREATE TABLE transacional.transacoes_investimentos_renda_fixa (
     CONSTRAINT transacoes_investimentos_renda_fixa_fk_usuario_conta FOREIGN KEY (id_usuario_conta) REFERENCES essencial.usuario_contas(id) ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT transacoes_investimentos_renda_fixa_fk_usuario_conta_investimento FOREIGN KEY (id_usuario_conta_investimento) REFERENCES essencial.usuario_contas(id) ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT transacoes_investimentos_renda_fixa_fk_procedimento FOREIGN KEY (id_procedimento) REFERENCES essencial.procedimentos_saldo(id) ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT transacoes_investimentos_renda_fixa_fk_produto_renda_fixa FOREIGN KEY (id_produto_renda_fixa) REFERENCES essencial.produtos_renda_fixa(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT transacoes_investimentos_renda_fixa_fk_produto_renda_fixa FOREIGN KEY (id_produto_renda_fixa) REFERENCES transacional.produtos_renda_fixa(id) ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT transacoes_investimentos_renda_fixa_fk_operador FOREIGN KEY (id_operador) REFERENCES essencial.operadores(id) ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT transacoes_investimentos_renda_fixa_verificar_data_efetivacao_maior_igual_programada CHECK (data_programada IS NULL OR data_efetivacao >= data_programada),
     CONSTRAINT transacoes_investimentos_renda_fixa_verificar_efetivacao_nao_pendente CHECK ((situacao = 'Pendente' AND data_efetivacao IS NULL) OR (situacao <> 'Pendente' AND data_efetivacao IS NOT NULL)),
