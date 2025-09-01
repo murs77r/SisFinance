@@ -1129,6 +1129,7 @@ CREATE TABLE transacional.produtos_renda_fixa (
     id character varying(50) NOT NULL,
     id_emissores_renda_fixa character varying(50) NOT NULL,
     id_indexadores_investimentos character varying(50) NOT NULL,
+    id_usuario_conta_investimento character varying(50) NOT NULL,
     id_usuario character varying(50) NOT NULL,
     descricao text NOT NULL,
     rendimento numeric(4,2),
@@ -1138,47 +1139,19 @@ CREATE TABLE transacional.produtos_renda_fixa (
     CONSTRAINT produtos_renda_fixa_fk_emissores_renda_fixa FOREIGN KEY (id_emissores_renda_fixa) REFERENCES essencial.emissores_renda_fixa(id) ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT produtos_renda_fixa_fk_indexadores_investimentos FOREIGN KEY (id_indexadores_investimentos) REFERENCES essencial.indexadores_investimentos(id) ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT produtos_renda_fixa_fk_usuarios FOREIGN KEY (id_usuario) REFERENCES essencial.usuarios(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT produtos_renda_fixa_fk_usuario_conta_investimento FOREIGN KEY (id_usuario_conta_investimento) REFERENCES essencial.usuario_contas(id) ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT produtos_renda_fixa_unique UNIQUE (id_emissores_renda_fixa, id_indexadores_investimentos, descricao)
 );
 COMMENT ON TABLE transacional.produtos_renda_fixa IS 'Armazena os produtos de renda fixa disponíveis, com informações sobre emissores, indexadores e rendimento.';
 COMMENT ON COLUMN transacional.produtos_renda_fixa.id IS 'Identificador único do produto de renda fixa (PK, fornecido externamente).';
 COMMENT ON COLUMN transacional.produtos_renda_fixa.id_emissores_renda_fixa IS 'Referência ao emissor do produto de renda fixa (FK para essencial.emissores_renda_fixa).';
 COMMENT ON COLUMN transacional.produtos_renda_fixa.id_indexadores_investimentos IS 'Referência ao indexador relacionado ao produto (FK para essencial.indexadores_investimentos).';
+COMMENT ON COLUMN transacional.produtos_renda_fixa.id_usuario_conta_investimento IS 'Referência à conta de investimento/custódia onde o produto está registrado (FK para usuario_contas).';
 COMMENT ON COLUMN transacional.produtos_renda_fixa.id_usuario IS 'Referência ao usuário (FK para essencial.usuarios).';
 COMMENT ON COLUMN transacional.produtos_renda_fixa.descricao IS 'Descrição detalhada do produto de renda fixa.';
 COMMENT ON COLUMN transacional.produtos_renda_fixa.rendimento IS 'Percentual de rendimento do produto de renda fixa (opcional).';
 COMMENT ON COLUMN transacional.produtos_renda_fixa.datahora_criacao IS 'Data e hora exatas (UTC) em que o registro foi criado.';
 COMMENT ON COLUMN transacional.produtos_renda_fixa.datahora_atualizacao IS 'Data e hora exatas (UTC) da última modificação manual neste registro.';
-
--- Operacionalização da tabela 'transacoes_investimentos_renda_fixa'
-
-CREATE TYPE transacional.operacao_investimento AS ENUM ('Aplicação', 'Resgate');
-
-CREATE TABLE transacional.transacoes_investimentos_renda_fixa (
-    id character varying(50) NOT NULL,
-    id_usuario_conta character varying(50) NOT NULL,
-    id_usuario_conta_investimento character varying(50) NOT NULL,
-    id_produto_renda_fixa character varying(50) NOT NULL,
-    id_operador character varying(50) NOT NULL,
-    id_procedimento character varying(50) NOT NULL,
-    situacao transacional.situacao NOT NULL DEFAULT 'Efetuado',
-    operacao transacional.operacao_investimento NOT NULL,
-    data_programada timestamp with time zone,
-    data_efetivacao timestamp with time zone,
-    comprovante text,
-    observacoes text,
-    datahora_criacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    datahora_atualizacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT transacoes_investimentos_renda_fixa_id_pk PRIMARY KEY (id),
-    CONSTRAINT transacoes_investimentos_renda_fixa_fk_usuario_conta FOREIGN KEY (id_usuario_conta) REFERENCES essencial.usuario_contas(id) ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT transacoes_investimentos_renda_fixa_fk_usuario_conta_investimento FOREIGN KEY (id_usuario_conta_investimento) REFERENCES essencial.usuario_contas(id) ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT transacoes_investimentos_renda_fixa_fk_procedimento FOREIGN KEY (id_procedimento) REFERENCES essencial.procedimentos_saldo(id) ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT transacoes_investimentos_renda_fixa_fk_produto_renda_fixa FOREIGN KEY (id_produto_renda_fixa) REFERENCES transacional.produtos_renda_fixa(id) ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT transacoes_investimentos_renda_fixa_fk_operador FOREIGN KEY (id_operador) REFERENCES essencial.operadores(id) ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT transacoes_investimentos_renda_fixa_verificar_data_efetivacao_maior_igual_programada CHECK (data_programada IS NULL OR data_efetivacao >= data_programada),
-    CONSTRAINT transacoes_investimentos_renda_fixa_verificar_efetivacao_nao_pendente CHECK ((situacao = 'Pendente' AND data_efetivacao IS NULL) OR (situacao <> 'Pendente' AND data_efetivacao IS NOT NULL)),
-);
-
 
 CREATE OR REPLACE FUNCTION transacional.validar_conta_investimento()
 RETURNS TRIGGER AS $$
@@ -1198,5 +1171,87 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER validar_conta_investimento_trigger
-BEFORE INSERT OR UPDATE ON transacional.transacoes_investimentos_renda_fixa
+BEFORE INSERT OR UPDATE ON transacional.produtos_renda_fixa
 FOR EACH ROW EXECUTE FUNCTION transacional.validar_conta_investimento();
+
+-- Operacionalização da tabela 'transacoes_investimentos_renda_fixa'
+
+CREATE TYPE transacional.operacao_investimento AS ENUM ('Aplicação', 'Resgate');
+
+CREATE TABLE transacional.transacoes_investimentos_renda_fixa (
+    id character varying(50) NOT NULL,
+    id_usuario_conta character varying(50) NOT NULL,
+    id_produto_renda_fixa character varying(50) NOT NULL,
+    id_operador character varying(50) NOT NULL,
+    id_procedimento character varying(50) NOT NULL,
+    situacao transacional.situacao NOT NULL DEFAULT 'Efetuado',
+    data_programada timestamp with time zone,
+    data_efetivacao timestamp with time zone,
+    comprovante text,
+    observacoes text,
+    datahora_criacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    datahora_atualizacao timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT transacoes_investimentos_renda_fixa_id_pk PRIMARY KEY (id),
+    CONSTRAINT transacoes_investimentos_renda_fixa_fk_usuario_conta FOREIGN KEY (id_usuario_conta) REFERENCES essencial.usuario_contas(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT transacoes_investimentos_renda_fixa_fk_usuario_conta_investimento FOREIGN KEY (id_usuario_conta_investimento) REFERENCES essencial.usuario_contas(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT transacoes_investimentos_renda_fixa_fk_procedimento FOREIGN KEY (id_procedimento) REFERENCES essencial.procedimentos_saldo(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT transacoes_investimentos_renda_fixa_fk_produto_renda_fixa FOREIGN KEY (id_produto_renda_fixa) REFERENCES transacional.produtos_renda_fixa(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT transacoes_investimentos_renda_fixa_fk_operador FOREIGN KEY (id_operador) REFERENCES essencial.operadores(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT transacoes_investimentos_renda_fixa_verificar_data_efetivacao_maior_igual_programada CHECK (data_programada IS NULL OR data_efetivacao >= data_programada),
+    CONSTRAINT transacoes_investimentos_renda_fixa_verificar_efetivacao_nao_pendente CHECK ((situacao = 'Pendente' AND data_efetivacao IS NULL) OR (situacao <> 'Pendente' AND data_efetivacao IS NOT NULL)),
+);
+
+-- Operacionalização da tabela 'transacoes_investimentos_renda_fixa_valores'
+
+CREATE TABLE transacional.transacoes_investimentos_renda_fixa_valores (
+    id character varying(50) NOT NULL,
+    id_transacoes_investimentos_renda_fixa character varying(50) NOT NULL,
+    operacao transacional.operacao_investimento NOT NULL,
+    data_efetivacao timestamp with time zone NOT NULL,
+    categoria transacional.categoria_valores NOT NULL DEFAULT 'Base',
+    observacoes text,
+    valor numeric(15, 2) NOT NULL,
+    CONSTRAINT transacoes_investimentos_renda_fixa_valores_id_pk PRIMARY KEY (id),
+    CONSTRAINT transacoes_investimentos_renda_fixa_valores_fk_transacao FOREIGN KEY (id_transacoes_investimentos_renda_fixa) REFERENCES transacional.transacoes_investimentos_renda_fixa(id) ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+COMMENT ON TABLE transacional.transacoes_investimentos_renda_fixa_valores IS 'Armazena os valores detalhados das transações de investimentos em renda fixa.';
+COMMENT ON COLUMN transacional.transacoes_investimentos_renda_fixa_valores.id IS 'Identificador único do valor da transação (PK, fornecido externamente).';
+COMMENT ON COLUMN transacional.transacoes_investimentos_renda_fixa_valores.id_transacoes_investimentos_renda_fixa IS 'Referência à transação de investimento em renda fixa (FK para transacoes_investimentos_renda_fixa).';
+COMMENT ON COLUMN transacional.transacoes_investimentos_renda_fixa_valores.operacao IS 'Tipo da operação (Aplicação ou Resgate).';
+COMMENT ON COLUMN transacional.transacoes_investimentos_renda_fixa_valores.data_efetivacao IS 'Data e hora em que o valor foi efetivado.';
+COMMENT ON COLUMN transacional.transacoes_investimentos_renda_fixa_valores.categoria IS 'Categoria do valor (Base, Taxa Diversa, etc.).';
+COMMENT ON COLUMN transacional.transacoes_investimentos_renda_fixa_valores.observacoes IS 'Observações adicionais sobre este valor específico.';
+COMMENT ON COLUMN transacional.transacoes_investimentos_renda_fixa_valores.valor IS 'Valor monetário com até 2 casas decimais.';
+
+-- Trigger para criação automática de registro inicial de valores
+
+CREATE OR REPLACE FUNCTION transacional.transacoes_investimentos_renda_fixa_valores_iniciais()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_OP = 'INSERT'
+    THEN
+        
+        INSERT INTO transacional.transacoes_investimentos_renda_fixa_valores (
+            id,
+            id_transacoes_investimentos_renda_fixa,
+            operacao,
+            data_efetivacao,
+            valor
+        ) VALUES (
+            NEW.id || '1',
+            NEW.id,
+            NEW.operacao,
+            NEW.data_efetivacao,
+            '0.00'
+        );
+
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER transacoes_investimentos_renda_fixa_valores_iniciais
+AFTER INSERT ON transacional.transacoes_investimentos_renda_fixa
+FOR EACH ROW EXECUTE FUNCTION transacional.transacoes_investimentos_renda_fixa_valores_iniciais();
